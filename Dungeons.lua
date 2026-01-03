@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON MODULE (FORCED UI-TEXT EXTRACTION)
+-- 🏰 DUNGEON MODULE (NO ERRORS & STRICT STRINGS)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -8,11 +8,16 @@ local RS = game:GetService("ReplicatedStorage")
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 
+-- 1. VARIABLEN FÜR WERTE
+local selDungeon = "Space"
+local selDiff = "Easy"
+local selPrivacy = "Public"
+
 local dungeonNames = {"Space"}
 local diffNames = {"Easy", "Medium", "Hard", "Impossible"}
 local diffMap = {["Easy"] = 1, ["Medium"] = 2, ["Hard"] = 3, ["Impossible"] = 4}
 
--- 1. DYNAMISCHE DATEN (Falls Modul verfügbar)
+-- Daten dynamisch laden
 local function RefreshData()
     local success, Info = pcall(function() return require(RS.Modules:WaitForChild("DungeonInfo", 5)) end)
     if success and Info then
@@ -28,11 +33,7 @@ local function RefreshData()
 end
 RefreshData()
 
--- 2. UI DROPDOWNS (Werte werden in lokalen Variablen gehalten um Config-Tables zu umgehen)
-local selDungeon = "Space"
-local selDiff = "Easy"
-local selPrivacy = "Public"
-
+-- 2. UI DROPDOWNS
 Tab:CreateSection("🏰 Create Dungeon Group")
 
 Tab:CreateDropdown({
@@ -40,7 +41,7 @@ Tab:CreateDropdown({
     Options = dungeonNames,
     CurrentOption = "Space",
     Callback = function(opt) 
-        selDungeon = type(opt) == "table" and opt[1] or tostring(opt)
+        selDungeon = (type(opt) == "table" and opt[1]) or tostring(opt)
     end
 })
 
@@ -49,7 +50,7 @@ Tab:CreateDropdown({
     Options = diffNames,
     CurrentOption = "Easy",
     Callback = function(opt) 
-        selDiff = type(opt) == "table" and opt[1] or tostring(opt)
+        selDiff = (type(opt) == "table" and opt[1]) or tostring(opt)
     end
 })
 
@@ -58,40 +59,32 @@ Tab:CreateDropdown({
     Options = {"Public", "Friends"},
     CurrentOption = "Public",
     Callback = function(opt) 
-        -- Wir speichern den Wert direkt in einer lokalen Variable statt in der Config-Table
-        selPrivacy = type(opt) == "table" and opt[1] or tostring(opt)
+        selPrivacy = (type(opt) == "table" and opt[1]) or tostring(opt)
     end
 })
 
 Tab:CreateButton({
     Name = "🚀 Create Dungeon",
     Callback = function()
-        -- Wir säubern die Variablen vor dem Senden extrem gründlich
-        local cleanPrivacy = tostring(selPrivacy)
-        local cleanDungeon = tostring(selDungeon)
-        local diffIndex = tonumber(diffMap[selDiff]) or 1
+        -- String-Sicherung
+        local pArg = tostring(selPrivacy)
+        local dArg = tostring(selDungeon)
+        local dNum = tonumber(diffMap[selDiff]) or 1
 
-        -- Sicherheits-Check gegen Speicheradressen:
-        -- Wenn der String "table:" enthält, setzen wir einen Default
-        if cleanPrivacy:find("table:") then cleanPrivacy = "Public" end
-        if cleanDungeon:find("table:") then cleanDungeon = "Space" end
+        -- Notfall-Korrektur falls "table: 0x" durchrutscht
+        if pArg:find("table:") then pArg = "Public" end
+        if dArg:find("table:") then dArg = "Space" end
 
         local args = {
             [1] = "DungeonGroupAction",
             [2] = "Create",
-            [3] = cleanPrivacy, -- GARANTIERT STRING
-            [4] = cleanDungeon, -- GARANTIERT STRING
-            [5] = diffIndex    -- GARANTIERT ZAHL
+            [3] = pArg,   -- GARANTIERT STRING ("Public"/"Friends")
+            [4] = dArg,   -- GARANTIERT STRING
+            [5] = dNum    -- GARANTIERT ZAHL
         }
         
         RS.Events.UIAction:FireServer(unpack(args))
-        
-        -- Benachrichtigung zur Kontrolle
-        Rayfield:Notify({
-            Title = "Dungeon gestartet",
-            Content = "Modus: " .. cleanPrivacy .. " | Diff: " .. tostring(diffIndex),
-            Duration = 3
-        })
+        print("Dungeon Create Fired: ", pArg, dArg, dNum)
     end
 })
 
@@ -111,7 +104,7 @@ Tab:CreateDropdown({
     Options = {"Health", "Damage", "Crit Chance", "Incubator Slots", "Incubator Speed", "Coins Boost", "Crowns Boost"},
     CurrentOption = "Health",
     Callback = function(opt)
-        local val = type(opt) == "table" and opt[1] or tostring(opt)
+        local val = (type(opt) == "table" and opt[1]) or tostring(opt)
         selUpgrade = upgradeMap[val] or "DungeonHealth"
     end
 })
