@@ -1,5 +1,5 @@
 -- ========================================================
--- 💰 MERCHANT MODULE (PRO LOGIC - FIXED)
+-- 💰 MERCHANT MODULE (SMART TYPE SCANNER)
 -- ========================================================
 
 local Tab = _G.Hub["💰 Merchant"]
@@ -8,43 +8,50 @@ local RS = game:GetService("ReplicatedStorage")
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 
--- Variablen für Counter und Auswahl
 local itemsBoughtCount = 0
-local SlotOptions = {"Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5"}
-_G.Hub.Config.SelectedMerchantSlot = 1
+local AvailableTypes = {"Boosts", "Pets", "Charms"}
+_G.Hub.Config.SelectedMerchantType = "Pets"
 
--- 1. FUNKTION: DATEN AUSLESEN (Wichtig für den Zeitstempel)
+-- 1. FUNKTION: LIVE-DATEN HOLEN
 local function GetMerchantData()
-    local player = game.Players.LocalPlayer
-    -- Wir versuchen die Daten aus dem ClientDataManager oder PlayerGui zu fischen
     local success, data = pcall(function()
+        -- Wir brauchen die Daten, um zu wissen, was in welchem Slot liegt
         return require(RS.Modules.ClientDataManager).Data.TravelingMerchant
     end)
     return success and data or nil
 end
 
--- 2. STATUS & TIMER FUNKTIONEN
-local function GetNextMerchantTime()
-    local timeLeft = 3600 - (os.time() % 3600)
-    return string.format("%02d:%02d", math.floor(timeLeft / 60), timeLeft % 60)
+-- 2. FUNKTION: MODUL FÜR TYPES (Für das Dropdown)
+local function GetTypesFromModule()
+    local success, Info = pcall(function()
+        return require(RS.Modules:WaitForChild("TravelingMerchantInfo", 10))
+    end)
+    if success and Info and Info.Listings then
+        local types = {}
+        for _, v in pairs(Info.Listings) do
+            if v.Type and not table.find(types, v.Type) then
+                table.insert(types, v.Type)
+            end
+        end
+        return types
+    end
+    return AvailableTypes
 end
 
 -- 3. UI ELEMENTE
-Tab:CreateSection("💰 Merchant Auto-Buy")
+Tab:CreateSection("💰 Smart Auto-Buy")
 
 Tab:CreateDropdown({
-    Name = "Select Shop Slot",
-    Options = SlotOptions,
-    CurrentOption = "Slot 1",
+    Name = "Select Type to Buy",
+    Options = GetTypesFromModule(),
+    CurrentOption = "Pets",
     Callback = function(opt)
-        -- Extrahiert die Nummer aus "Slot 1" -> 1
-        local num = tostring(opt):match("%d+")
-        _G.Hub.Config.SelectedMerchantSlot = tonumber(num) or 1
+        _G.Hub.Config.SelectedMerchantType = type(opt) == "table" and opt[1] or opt
     end
 })
 
 Tab:CreateToggle({
-    Name = "Auto Buy Selected Slot",
+    Name = "Auto Buy Selected Type",
     CurrentValue = false,
     Callback = function(v) _G.Hub.Toggles.AutoMerchant = v end
 })
@@ -57,40 +64,49 @@ Tab:CreateSlider({
     Callback = function(v) _G.Hub.Config.MerchantSpeed = v end
 })
 
-Tab:CreateSection("📊 Info & Live Timer")
-local statusLabel = Tab:CreateLabel("Status: Prüfe...")
-local timerLabel = Tab:CreateLabel("Timer: --:--")
+Tab:CreateSection("📊 Info")
+local statusLabel = Tab:CreateLabel("Status: Warten...")
 local buyLabel = Tab:CreateLabel("Gekaufte Items: 0")
 
--- 4. DER KAUF-LOOP (Basierend auf SimpleSpy)
+-- 4. SMART LOGIK LOOP
 task.spawn(function()
+    -- Wir brauchen auch das Info-Modul, um IDs in Typen zu übersetzen
+    local InfoModule = require(RS.Modules:WaitForChild("TravelingMerchantInfo"))
+
     while true do
         local merchantData = GetMerchantData()
-        local merchantExists = workspace:FindFirstChild("Merchant") or workspace:FindFirstChild("Travelling Merchant")
+        local isHere = workspace:FindFirstChild("Merchant") or workspace:FindFirstChild("Travelling Merchant")
         
-        -- UI Updates
-        pcall(function()
-            statusLabel:Set(merchantExists and "Status: ✅ Händler ist da!" or "Status: ❌ Nicht da")
-            timerLabel:Set("Nächster Merchant in: ~ " .. GetNextMerchantTime())
-        end)
-
-        if _G.Hub.Toggles.AutoMerchant and merchantExists and merchantData then
-            pcall(function()
-                -- Das Event aus deinem SimpleSpy
-                -- args[2] = Slot Index
-                -- args[3] = ResetDT (Zeitstempel aus den Spieldaten)
-                RS.Events.UIAction:FireServer(
-                    "TravelingMerchantBuyItem", 
-                    _G.Hub.Config.SelectedMerchantSlot, 
-                    merchantData.ResetDT
-                )
-                
-                itemsBoughtCount = itemsBoughtCount + 1
-                buyLabel:Set("Gekaufte Items: " .. tostring(itemsBoughtCount))
-            end)
-            task.wait(_G.Hub.Config.MerchantSpeed or 0.5)
+        if isHere then
+            statusLabel:Set("Status: ✅ Händler aktiv")
         else
-            task.wait(1)
+            statusLabel:Set("Status: ❌ Händler nicht da")
         end
+
+        if _G.Hub.Toggles.AutoMerchant and isHere and merchantData then
+            local targetType = _G.Hub.Config.SelectedMerchantType
+            
+            -- Wir scannen die aktuellen Items im Shop (merchantData.Items)
+            for slotIndex, itemData in pairs(merchantData.Items) do
+                -- itemData.Index sagt uns, welches Item aus dem Info-Modul es ist
+                local itemInfo = InfoModule.Listings[itemData.Index]
+                
+                if itemInfo and itemInfo.Type == targetType then
+                    -- Nur kaufen, wenn noch Käufe übrig sind
+                    if itemData.BuysLeft and itemData.BuysLeft > 0 then
+                        pcall(function()
+                            RS.Events.UIAction:FireServer(
+                                "TravelingMerchantBuyItem", 
+                                slotIndex, 
+                                merchantData.ResetDT
+                            )
+                            itemsBoughtCount = itemsBoughtCount + 1
+                            buyLabel:Set("Gekaufte Items: " .. tostring(itemsBoughtCount))
+                        end)
+                    end
+                end
+            end
+        end
+        task.wait(_G.Hub.Config.MerchantSpeed or 0.5)
     end
 end)
