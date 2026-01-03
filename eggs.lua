@@ -1,5 +1,5 @@
 -- ========================================================
--- 🥚 GITHUB MODULE: EGG HATCHER (DATA-DRIVEN)
+-- 🥚 GITHUB MODULE: EGG HATCHER (ORDERED BY DATA)
 -- ========================================================
 
 local Tab = _G.Hub["🥚 Eggs"]
@@ -7,24 +7,25 @@ local RS = game:GetService("ReplicatedStorage")
 local EggList = {}
 local SelectedEgg = ""
 
--- 1. LOGIK: EIER AUS PETSHOPINFO EXTRAHIEREN
+-- 1. LOGIK: EIER IN DER ORIGINAL-REIHENFOLGE EXTRAHIEREN
 local function CollectEggNames()
     local success, PetShopInfo = pcall(function()
-        -- Wir nutzen deinen Pfad aus PetsInfo
         return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo"))
     end)
 
     if success then
+        -- Wir gehen die Tabelle so durch, wie sie im Modul steht
         local function scan(t)
+            -- Wir nutzen pairs, aber da PetShopInfo oft numerisch indiziert ist, 
+            -- bleibt die Reihenfolge der Definition meist erhalten.
             for k, v in pairs(t) do
                 if type(v) == "table" then
-                    -- Wenn eine Tabelle "EggName" enthält, speichern wir diesen
                     if v.EggName then
+                        -- Nur einfügen, wenn noch nicht in der Liste
                         if not table.find(EggList, v.EggName) then
                             table.insert(EggList, v.EggName)
                         end
                     else
-                        -- Falls nicht, suchen wir eine Ebene tiefer
                         scan(v)
                     end
                 end
@@ -39,13 +40,14 @@ end
 -- Eier suchen
 CollectEggNames()
 
--- Notfall-Liste, falls das Modul leer ist
+-- Falls keine Eier gefunden wurden (Notfall)
 if #EggList == 0 then
     EggList = {"Common Egg", "Uncommon Egg", "Rare Egg"}
 end
 
--- Sortierung der Liste für bessere Übersicht
-table.sort(EggList)
+-- WICHTIG: table.sort(EggList) wurde entfernt, damit die 
+-- Reihenfolge aus dem PetShopInfo-Modul beibehalten wird.
+
 SelectedEgg = EggList[1]
 
 -- 2. UI ELEMENTE
@@ -71,17 +73,13 @@ Tab:CreateToggle({
             task.spawn(function() 
                 while _G.Hub.Toggles.AutoHatch do 
                     if SelectedEgg and SelectedEgg ~= "" then 
-                        -- Remote-Befehl für den Kauf/Hatch
                         RS.Events.UIAction:FireServer("BuyEgg", SelectedEgg) 
                     end 
-                    task.wait(0.3) -- Hatch-Geschwindigkeit
+                    task.wait(0.3) 
                 end 
             end)
         end
     end 
 })
 
-Tab:CreateSection("📊 Stats")
-Tab:CreateLabel("Verfügbare Eggs: " .. #EggList)
-
-print("✅ Egg-Modul mit " .. #EggList .. " Eiern geladen.")
+Tab:CreateLabel("Gefundene Eggs: " .. #EggList)
