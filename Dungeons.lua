@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON MODULE (STRING FORCING FIX)
+-- 🏰 DUNGEON MODULE (FORCED STRING LOGIC)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -12,7 +12,7 @@ local dungeonNames = {}
 local diffNames = {}
 local diffMap = {}
 
--- 1. DYNAMISCHE DATEN (DungeonInfo)
+-- 1. DYNAMISCHE DATEN LADEN
 local function RefreshData()
     local success, Info = pcall(function() return require(RS.Modules:WaitForChild("DungeonInfo", 10)) end)
     if success and Info then
@@ -29,7 +29,7 @@ local function RefreshData()
 end
 RefreshData()
 
--- 2. UI: DUNGEON ERSTELLEN
+-- 2. UI ELEMENTE
 Tab:CreateSection("🏰 Create Dungeon Group")
 
 Tab:CreateDropdown({
@@ -37,8 +37,9 @@ Tab:CreateDropdown({
     Options = dungeonNames,
     CurrentOption = dungeonNames[1] or "Space",
     Callback = function(opt) 
-        -- Sicherstellen, dass es ein String ist
-        _G.Hub.Config.SelectedDungeon = type(opt) == "table" and opt[1] or opt 
+        -- Extraktion des Strings falls opt eine Tabelle ist
+        local val = type(opt) == "table" and opt[1] or opt
+        _G.Hub.Config.SelectedDungeon = tostring(val)
     end
 })
 
@@ -48,7 +49,7 @@ Tab:CreateDropdown({
     CurrentOption = diffNames[1] or "Easy",
     Callback = function(opt) 
         local val = type(opt) == "table" and opt[1] or opt
-        _G.Hub.Config.SelectedDiffValue = diffMap[val] or 1
+        _G.Hub.Config.SelectedDiffValue = diffMap[tostring(val)] or 1
     end
 })
 
@@ -57,41 +58,45 @@ Tab:CreateDropdown({
     Options = {"Public", "Friends"},
     CurrentOption = "Public",
     Callback = function(opt) 
-        -- Hier erzwingen wir den String, um "table: 0x..." zu verhindern
-        _G.Hub.Config.DungeonPrivacy = type(opt) == "table" and opt[1] or opt 
+        -- WICHTIG: Hier speichern wir nur den reinen Text
+        local val = type(opt) == "table" and opt[1] or opt
+        _G.Hub.Config.DungeonPrivacy = tostring(val)
     end
 })
 
 Tab:CreateButton({
     Name = "🚀 Create Dungeon",
     Callback = function()
-        -- Doppelte Absicherung: Wir wandeln alles nochmal in Strings/Zahlen um
-        local pArg = tostring(_G.Hub.Config.DungeonPrivacy or "Public")
-        local dArg = tostring(_G.Hub.Config.SelectedDungeon or "Space")
-        local diffNum = tonumber(_G.Hub.Config.SelectedDiffValue) or 1
+        -- RADIKALER FIX: Wir prüfen den Wert manuell vor dem Senden
+        local finalPrivacy = "Public"
+        if _G.Hub.Config.DungeonPrivacy == "Friends" or _G.Hub.Config.DungeonPrivacy == "table: " then
+             finalPrivacy = "Friends"
+        elseif _G.Hub.Config.DungeonPrivacy == "Public" then
+             finalPrivacy = "Public"
+        end
         
+        -- Falls die Library immer noch Müll liefert, nehmen wir den Wert direkt aus der Auswahl
+        -- Wir erzwingen hier die exakte Schreibweise
         local args = {
             [1] = "DungeonGroupAction",
             [2] = "Create",
-            [3] = pArg,   -- Jetzt garantiert "Friends" oder "Public" als Text
-            [4] = dArg,   -- "Space"
-            [5] = diffNum  -- 1
+            [3] = tostring(finalPrivacy), -- GARANTIERT EIN STRING
+            [4] = tostring(_G.Hub.Config.SelectedDungeon or "Space"),
+            [5] = tonumber(_G.Hub.Config.SelectedDiffValue) or 1
         }
         
         RS.Events.UIAction:FireServer(unpack(args))
+        print("Fired Dungeon Action with Privacy: " .. args[3])
     end
 })
 
--- 3. UI: AUTO UPGRADES & INCUBATOR
-Tab:CreateSection("🆙 Dungeon Upgrades")
+-- 3. UPGRADES & INCUBATOR
+Tab:CreateSection("🆙 Upgrades & Incubator")
 
-local upgradeTechnicalNames = {
-    ["Health"] = "DungeonHealth",
-    ["Damage"] = "DungeonDamage",
-    ["Crit Chance"] = "DungeonCritChance",
-    ["Incubator Slots"] = "DungeonEggSlots",
-    ["Incubator Speed"] = "IncubatorSpeed",
-    ["Coins Boost"] = "DungeonCoins",
+local upgradeMap = {
+    ["Health"] = "DungeonHealth", ["Damage"] = "DungeonDamage",
+    ["Crit Chance"] = "DungeonCritChance", ["Incubator Slots"] = "DungeonEggSlots",
+    ["Incubator Speed"] = "IncubatorSpeed", ["Coins Boost"] = "DungeonCoins",
     ["Crowns Boost"] = "DungeonCrowns"
 }
 
@@ -101,7 +106,7 @@ Tab:CreateDropdown({
     CurrentOption = "Health",
     Callback = function(opt)
         local val = type(opt) == "table" and opt[1] or opt
-        _G.Hub.Config.CurrentUpgradeTech = upgradeTechnicalNames[val]
+        _G.Hub.Config.CurrentUpgradeTech = upgradeMap[tostring(val)]
     end
 })
 
@@ -111,7 +116,6 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoDungeonUpgrade = v end
 })
 
-Tab:CreateSection("🥚 Incubator")
 Tab:CreateToggle({
     Name = "Auto Claim Incubator",
     CurrentValue = false,
