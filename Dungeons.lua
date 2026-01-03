@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON MODULE (ULTIMATE DYNAMIC FIX)
+-- 🏰 DUNGEON MODULE (STRING FORCING FIX)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -8,23 +8,20 @@ local RS = game:GetService("ReplicatedStorage")
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 
--- 1. DYNAMISCHE DATEN HOLEN
 local dungeonNames = {}
 local diffNames = {}
 local diffMap = {}
 
+-- 1. DYNAMISCHE DATEN (DungeonInfo)
 local function RefreshData()
     local success, Info = pcall(function() return require(RS.Modules:WaitForChild("DungeonInfo", 10)) end)
     if success and Info then
-        -- Dungeons laden
         for name, _ in pairs(Info.Dungeons) do table.insert(dungeonNames, name) end
-        -- Difficulties dynamisch mappen (Name -> Index)
         for index, data in ipairs(Info.Difficulties) do
             table.insert(diffNames, data.Name)
             diffMap[data.Name] = index
         end
     else
-        -- Fallback
         dungeonNames = {"Space"}
         diffNames = {"Easy", "Medium", "Hard", "Impossible"}
         diffMap = {["Easy"] = 1, ["Medium"] = 2, ["Hard"] = 3, ["Impossible"] = 4}
@@ -39,7 +36,10 @@ Tab:CreateDropdown({
     Name = "Select Dungeon",
     Options = dungeonNames,
     CurrentOption = dungeonNames[1] or "Space",
-    Callback = function(opt) _G.Hub.Config.SelectedDungeon = opt end
+    Callback = function(opt) 
+        -- Sicherstellen, dass es ein String ist
+        _G.Hub.Config.SelectedDungeon = type(opt) == "table" and opt[1] or opt 
+    end
 })
 
 Tab:CreateDropdown({
@@ -47,8 +47,8 @@ Tab:CreateDropdown({
     Options = diffNames,
     CurrentOption = diffNames[1] or "Easy",
     Callback = function(opt) 
-        -- Hier wird die Zahl (1, 2, 3...) dynamisch aus der Map geholt
-        _G.Hub.Config.SelectedDiffValue = diffMap[opt] or 1
+        local val = type(opt) == "table" and opt[1] or opt
+        _G.Hub.Config.SelectedDiffValue = diffMap[val] or 1
     end
 })
 
@@ -56,22 +56,26 @@ Tab:CreateDropdown({
     Name = "Privacy",
     Options = {"Public", "Friends"},
     CurrentOption = "Public",
-    Callback = function(opt) _G.Hub.Config.DungeonPrivacy = opt end
+    Callback = function(opt) 
+        -- Hier erzwingen wir den String, um "table: 0x..." zu verhindern
+        _G.Hub.Config.DungeonPrivacy = type(opt) == "table" and opt[1] or opt 
+    end
 })
 
 Tab:CreateButton({
     Name = "🚀 Create Dungeon",
     Callback = function()
-        -- DER FIX: Wir senden einen REINEN STRING für [3]
-        -- Genau wie in deinem Log: [3] = "Public" oder "Friends"
-        local privacyArg = tostring(_G.Hub.Config.DungeonPrivacy or "Public")
+        -- Doppelte Absicherung: Wir wandeln alles nochmal in Strings/Zahlen um
+        local pArg = tostring(_G.Hub.Config.DungeonPrivacy or "Public")
+        local dArg = tostring(_G.Hub.Config.SelectedDungeon or "Space")
+        local diffNum = tonumber(_G.Hub.Config.SelectedDiffValue) or 1
         
         local args = {
             [1] = "DungeonGroupAction",
             [2] = "Create",
-            [3] = privacyArg, -- Reiner String!
-            [4] = tostring(_G.Hub.Config.SelectedDungeon or "Space"),
-            [5] = tonumber(_G.Hub.Config.SelectedDiffValue) or 1
+            [3] = pArg,   -- Jetzt garantiert "Friends" oder "Public" als Text
+            [4] = dArg,   -- "Space"
+            [5] = diffNum  -- 1
         }
         
         RS.Events.UIAction:FireServer(unpack(args))
@@ -96,7 +100,8 @@ Tab:CreateDropdown({
     Options = {"Health", "Damage", "Crit Chance", "Incubator Slots", "Incubator Speed", "Coins Boost", "Crowns Boost"},
     CurrentOption = "Health",
     Callback = function(opt)
-        _G.Hub.Config.CurrentUpgradeTech = upgradeTechnicalNames[opt]
+        local val = type(opt) == "table" and opt[1] or opt
+        _G.Hub.Config.CurrentUpgradeTech = upgradeTechnicalNames[val]
     end
 })
 
@@ -113,17 +118,15 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoIncubator = v end
 })
 
--- 4. LOGIK LOOP
+-- 4. LOOP
 task.spawn(function()
     while true do
         task.wait(1)
-        -- Auto Upgrades
         if _G.Hub.Toggles.AutoDungeonUpgrade and _G.Hub.Config.CurrentUpgradeTech then
             for i = 1, 10 do
                 RS.Events.UIAction:FireServer("BuyDungeonUpgrade", _G.Hub.Config.CurrentUpgradeTech, i)
             end
         end
-        -- Auto Incubator
         if _G.Hub.Toggles.AutoIncubator then
             RS.Events.UIAction:FireServer("IncubatorAction", "ClaimAll")
         end
