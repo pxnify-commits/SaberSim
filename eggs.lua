@@ -1,20 +1,19 @@
 -- ========================================================
--- 🥚 FINISHED EGG MODULE (SIMPLESPY FIX)
+-- 🥚 FINISHED EGG MODULE (WITH HATCH COUNTER)
 -- ========================================================
 
 local Tab = _G.Hub["🥚 Eggs"]
 local RS = game:GetService("ReplicatedStorage")
 local EggList = {}
 
--- Sicherstellen, dass die Tabellen existieren, damit kein "nil" Fehler kommt
+-- Sicherstellen, dass die Tabellen existieren
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 
--- Standardwerte setzen
-_G.Hub.Config.SelectedEgg = "Basic Egg"
-_G.Hub.Config.EggHatchDelay = 0.3
+-- Zähler Variable (lokal für dieses Script)
+local eggsHatchedCount = 0
 
--- 1. EIER LADEN (Nativ)
+-- 1. EIER LADEN
 local success, PetShopInfo = pcall(function()
     return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo", 10))
 end)
@@ -36,7 +35,7 @@ if success and PetShopInfo then
     scan(PetShopInfo)
 end
 
-if #EggList == 0 then EggList = {"Basic Egg", "Common Egg"} end
+if #EggList == 0 then EggList = {"Basic Egg"} end
 
 -- 2. UI ELEMENTE
 Tab:CreateSection("🥚 Egg Hatching")
@@ -50,6 +49,10 @@ Tab:CreateDropdown({
         _G.Hub.Config.SelectedEgg = choice
     end
 })
+
+-- Startwerte
+_G.Hub.Config.SelectedEgg = EggList[1]
+_G.Hub.Config.EggHatchDelay = 0.3
 
 Tab:CreateToggle({
     Name = "Auto Hatch",
@@ -72,27 +75,28 @@ Tab:CreateSlider({
 Tab:CreateSection("📊 Info")
 Tab:CreateLabel("Gefundene Eggs: " .. tostring(#EggList))
 
--- 3. DER HATCH-LOOP (Basierend auf deinem SimpleSpy)
+-- DAS LIVE-LABEL FÜR DIE GEÖFFNETEN EIER
+local hatchLabel = Tab:CreateLabel("Egg Hatched: 0")
+
+-- 3. DER HATCH-LOOP MIT ZÄHLER
 task.spawn(function()
     while true do
-        task.wait() -- Verhindert Abstürze
+        task.wait()
         
         if _G.Hub.Toggles.AutoHatch then
             local currentEgg = _G.Hub.Config.SelectedEgg
             
             if currentEgg and currentEgg ~= "" then
-                -- DEINE SIMPLESPY LOGIK
-                local args = {
-                    [1] = "BuyEgg",
-                    [2] = currentEgg
-                }
-                
                 pcall(function()
-                    RS.Events.UIAction:FireServer(unpack(args))
+                    -- Kauf-Event feuern
+                    RS.Events.UIAction:FireServer("BuyEgg", currentEgg)
+                    
+                    -- Zähler erhöhen und UI aktualisieren
+                    eggsHatchedCount = eggsHatchedCount + 1
+                    hatchLabel:Set("Egg Hatched: " .. tostring(eggsHatchedCount))
                 end)
             end
             
-            -- Wartezeit basierend auf Slider
             task.wait(_G.Hub.Config.EggHatchDelay or 0.3)
         end
     end
