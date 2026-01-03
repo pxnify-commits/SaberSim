@@ -1,18 +1,25 @@
 -- ========================================================
--- 🥚 FINISHED EGG MODULE
+-- 🥚 FINISHED EGG MODULE (SIMPLESPY FIX)
 -- ========================================================
 
 local Tab = _G.Hub["🥚 Eggs"]
 local RS = game:GetService("ReplicatedStorage")
 local EggList = {}
 
--- 1. EIER LADEN (Genau wie dein Test-Script)
+-- Sicherstellen, dass die Tabellen existieren, damit kein "nil" Fehler kommt
+_G.Hub.Config = _G.Hub.Config or {}
+_G.Hub.Toggles = _G.Hub.Toggles or {}
+
+-- Standardwerte setzen
+_G.Hub.Config.SelectedEgg = "Basic Egg"
+_G.Hub.Config.EggHatchDelay = 0.3
+
+-- 1. EIER LADEN (Nativ)
 local success, PetShopInfo = pcall(function()
-    return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo"))
+    return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo", 10))
 end)
 
-if success then
-    -- Einfacher Scan ohne Sortierung (behält Original-Reihenfolge)
+if success and PetShopInfo then
     local function scan(t)
         for k, v in pairs(t) do
             if type(v) == "table" then
@@ -29,11 +36,7 @@ if success then
     scan(PetShopInfo)
 end
 
--- Falls nichts gefunden wurde (Notfall-Backup)
-if #EggList == 0 then EggList = {"Common Egg", "Uncommon Egg"} end
-
--- Initial-Wert für das ausgewählte Ei setzen
-_G.Hub.Config.SelectedEgg = EggList[1]
+if #EggList == 0 then EggList = {"Basic Egg", "Common Egg"} end
 
 -- 2. UI ELEMENTE
 Tab:CreateSection("🥚 Egg Hatching")
@@ -43,20 +46,17 @@ Tab:CreateDropdown({
     Options = EggList,
     CurrentOption = EggList[1],
     Callback = function(opt)
-        _G.Hub.Config.SelectedEgg = type(opt) == "table" and opt[1] or opt
+        local choice = type(opt) == "table" and opt[1] or opt
+        _G.Hub.Config.SelectedEgg = choice
     end
 })
 
 Tab:CreateToggle({
     Name = "Auto Hatch",
     CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.AutoHatch = v end
-})
-
-Tab:CreateToggle({
-    Name = "Hide Egg Open Animation",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.HideEggAnimation = v end
+    Callback = function(v) 
+        _G.Hub.Toggles.AutoHatch = v 
+    end
 })
 
 Tab:CreateSlider({
@@ -72,17 +72,28 @@ Tab:CreateSlider({
 Tab:CreateSection("📊 Info")
 Tab:CreateLabel("Gefundene Eggs: " .. tostring(#EggList))
 
--- 3. DER HATCH-LOOP (Stabil & Getestet)
+-- 3. DER HATCH-LOOP (Basierend auf deinem SimpleSpy)
 task.spawn(function()
     while true do
-        task.wait(_G.Hub.Config.EggHatchDelay or 0.3)
+        task.wait() -- Verhindert Abstürze
         
         if _G.Hub.Toggles.AutoHatch then
-            local egg = _G.Hub.Config.SelectedEgg
-            if egg and egg ~= "" then
-                -- Das Event für den Saber Simulator
-                RS.Events.UIAction:FireServer("BuyEgg", egg)
+            local currentEgg = _G.Hub.Config.SelectedEgg
+            
+            if currentEgg and currentEgg ~= "" then
+                -- DEINE SIMPLESPY LOGIK
+                local args = {
+                    [1] = "BuyEgg",
+                    [2] = currentEgg
+                }
+                
+                pcall(function()
+                    RS.Events.UIAction:FireServer(unpack(args))
+                end)
             end
+            
+            -- Wartezeit basierend auf Slider
+            task.wait(_G.Hub.Config.EggHatchDelay or 0.3)
         end
     end
 end)
