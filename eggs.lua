@@ -1,37 +1,39 @@
 -- ========================================================
--- 🥚 GITHUB MODULE: EGG HATCHER (FIXED OPENING)
+-- 🥚 FINISHED EGG MODULE
 -- ========================================================
 
 local Tab = _G.Hub["🥚 Eggs"]
 local RS = game:GetService("ReplicatedStorage")
 local EggList = {}
 
--- 1. EIER LADEN (Nativ)
-local function LoadEggs()
-    local success, PetShopInfo = pcall(function()
-        return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo", 10))
-    end)
+-- 1. EIER LADEN (Genau wie dein Test-Script)
+local success, PetShopInfo = pcall(function()
+    return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo"))
+end)
 
-    if success and PetShopInfo then
-        local function scan(t)
-            for k, v in pairs(t) do
-                if type(v) == "table" then
-                    if v.EggName then
-                        if not table.find(EggList, v.EggName) then
-                            table.insert(EggList, v.EggName)
-                        end
-                    else
-                        scan(v)
+if success then
+    -- Einfacher Scan ohne Sortierung (behält Original-Reihenfolge)
+    local function scan(t)
+        for k, v in pairs(t) do
+            if type(v) == "table" then
+                if v.EggName then
+                    if not table.find(EggList, v.EggName) then
+                        table.insert(EggList, v.EggName)
                     end
+                else
+                    scan(v)
                 end
             end
         end
-        scan(PetShopInfo)
     end
+    scan(PetShopInfo)
 end
 
-LoadEggs()
+-- Falls nichts gefunden wurde (Notfall-Backup)
 if #EggList == 0 then EggList = {"Common Egg", "Uncommon Egg"} end
+
+-- Initial-Wert für das ausgewählte Ei setzen
+_G.Hub.Config.SelectedEgg = EggList[1]
 
 -- 2. UI ELEMENTE
 Tab:CreateSection("🥚 Egg Hatching")
@@ -41,14 +43,9 @@ Tab:CreateDropdown({
     Options = EggList,
     CurrentOption = EggList[1],
     Callback = function(opt)
-        -- Wir speichern die Auswahl direkt in der Config
-        local choice = type(opt) == "table" and opt[1] or opt
-        _G.Hub.Config.SelectedEgg = choice
+        _G.Hub.Config.SelectedEgg = type(opt) == "table" and opt[1] or opt
     end
 })
-
--- Initialwert setzen, falls nichts angeklickt wird
-_G.Hub.Config.SelectedEgg = EggList[1]
 
 Tab:CreateToggle({
     Name = "Auto Hatch",
@@ -75,24 +72,17 @@ Tab:CreateSlider({
 Tab:CreateSection("📊 Info")
 Tab:CreateLabel("Gefundene Eggs: " .. tostring(#EggList))
 
--- 3. HATCH LOOP (FIXED)
+-- 3. DER HATCH-LOOP (Stabil & Getestet)
 task.spawn(function()
-    while task.wait() do
+    while true do
+        task.wait(_G.Hub.Config.EggHatchDelay or 0.3)
+        
         if _G.Hub.Toggles.AutoHatch then
-            local eggName = _G.Hub.Config.SelectedEgg
-            
-            if eggName and eggName ~= "" then
-                -- Wir versuchen beide gängigen Remotes für Saber Sim
-                pcall(function()
-                    RS.Events.UIAction:FireServer("BuyEgg", eggName)
-                    -- Falls BuyEgg nicht geht, probieren wir das direkte Event:
-                    -- RS.Events.OpenEgg:FireServer(eggName) 
-                end)
+            local egg = _G.Hub.Config.SelectedEgg
+            if egg and egg ~= "" then
+                -- Das Event für den Saber Simulator
+                RS.Events.UIAction:FireServer("BuyEgg", egg)
             end
-            
-            task.wait(_G.Hub.Config.EggHatchDelay or 0.3)
-        else
-            task.wait(0.5) -- Spart Ressourcen, wenn aus
         end
     end
 end)
