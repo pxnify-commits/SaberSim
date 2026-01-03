@@ -1,5 +1,8 @@
 -- ========================================================
--- 🏰 DUNGEON MODULE (ALL-IN-ONE: DYNAMIC, MGMT & AUTOFARM)
+-- 🏰 DUNGEON MODULE (ULTIMATE EDITION)
+-- ========================================================
+-- Features: Dynamic Data, Create/Start, Auto-Upgrades, 
+-- Auto-Incubator, Advanced Autofarm (Dynamic Folders)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -7,29 +10,28 @@ local RS = game:GetService("ReplicatedStorage")
 local WS = game:GetService("Workspace")
 local Player = game.Players.LocalPlayer
 
--- Initialisierung der Configs (falls nicht vorhanden)
+-- 1. KONFIGURATIONEN & SPEICHER
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 _G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10
-_G.Hub.Config.FarmAngle = _G.Hub.Config.FarmAngle or 90
 
--- Lokale Speicher für die Auswahl (Strings)
-local selDungeon = "Space"
-local selDiff = "Easy"
-local selPrivacy = "Public"
+local selDungeon, selDiff, selPrivacy = "Space", "Easy", "Public"
 local selUpgrade = "DungeonHealth"
+local dungeonNames, diffNames, diffMap = {"Space"}, {"Easy"}, {["Easy"] = 1}
 
-local dungeonNames = {"Space"}
-local diffNames = {"Easy", "Medium", "Hard", "Impossible"}
-local diffMap = {["Easy"] = 1, ["Medium"] = 2, ["Hard"] = 3, ["Impossible"] = 4}
+local upgradeMap = {
+    ["Health"] = "DungeonHealth", ["Damage"] = "DungeonDamage",
+    ["Crit Chance"] = "DungeonCritChance", ["Incubator Slots"] = "DungeonEggSlots",
+    ["Incubator Speed"] = "IncubatorSpeed", ["Coins Boost"] = "DungeonCoins",
+    ["Crowns Boost"] = "DungeonCrowns"
+}
 
--- 1. DYNAMISCHE DATEN LADEN
+-- 2. DYNAMISCHE DATEN LADEN (Dungeon Info)
 local function RefreshData()
     local success, Info = pcall(function() return require(RS.Modules:WaitForChild("DungeonInfo", 5)) end)
-    if success and Info then
+    if success and Info and Info.Dungeons and Info.Difficulties then
         dungeonNames = {}
         for name, _ in pairs(Info.Dungeons) do table.insert(dungeonNames, name) end
-        
         diffNames = {}
         diffMap = {}
         for index, data in ipairs(Info.Difficulties) do
@@ -40,7 +42,7 @@ local function RefreshData()
 end
 RefreshData()
 
--- 2. UI: DUNGEON MANAGEMENT (Lobby & Start)
+-- 3. UI: MANAGEMENT (Lobby & Start)
 Tab:CreateSection("🏰 Dungeon Management")
 
 Tab:CreateDropdown({
@@ -68,7 +70,7 @@ Tab:CreateButton({
     Name = "🔨 Create Lobby",
     Callback = function()
         local pArg = tostring(selPrivacy)
-        if pArg:find("table:") then pArg = "Public" end
+        if pArg:find("table:") then pArg = "Public" end -- String-Fix
         RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", pArg, tostring(selDungeon), tonumber(diffMap[selDiff]) or 1)
     end
 })
@@ -80,7 +82,7 @@ Tab:CreateButton({
     end
 })
 
--- 3. UI: DUNGEON AUTOFARM (Extra Feature)
+-- 4. UI: AUTOFARM
 Tab:CreateSection("⚔️ Dungeon Autofarm")
 
 Tab:CreateToggle({
@@ -92,20 +94,13 @@ Tab:CreateToggle({
 Tab:CreateSlider({
     Name = "Farm Height (Höhe)",
     Min = 5,
-    Max = 30,
+    Max = 50,
     CurrentValue = 10,
     Callback = function(v) _G.Hub.Config.FarmHeight = v end
 })
 
--- 4. UI: UPGRADES & INCUBATOR
+-- 5. UI: UPGRADES & INCUBATOR
 Tab:CreateSection("🆙 Upgrades & Incubator")
-
-local upgradeMap = {
-    ["Health"] = "DungeonHealth", ["Damage"] = "DungeonDamage",
-    ["Crit Chance"] = "DungeonCritChance", ["Incubator Slots"] = "DungeonEggSlots",
-    ["Incubator Speed"] = "IncubatorSpeed", ["Coins Boost"] = "DungeonCoins",
-    ["Crowns Boost"] = "DungeonCrowns"
-}
 
 Tab:CreateDropdown({
     Name = "Select Upgrade",
@@ -129,36 +124,38 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoIncubator = v end
 })
 
--- 5. LOGIK LOOP (Autofarm, Upgrades & Incubator)
+-- 6. HAUPT-LOGIK LOOP
 task.spawn(function()
     while true do
         task.wait(0.1)
         
-        -- 5a. AUTOFARM LOGIK
+        -- A. AUTOFARM LOGIK (Mit dynamischer Ordner-Erkennung)
         if _G.Hub.Toggles.AutoFarm then
             pcall(function()
                 local dungeonStorage = WS:FindFirstChild("DungeonStorage")
                 if dungeonStorage then
-                    for _, dungeonInstance in pairs(dungeonStorage:GetChildren()) do
-                        local important = dungeonInstance:FindFirstChild("Important")
-                        if important then
-                            local spawnerNames = {"GreenEnemySpawner", "BlueEnemySpawner", "PurpleEnemySpawner", "RedEnemySpawner", "PurpleBossEnemySpawner"}
-                            
-                            for _, sName in pairs(spawnerNames) do
-                                local spawner = important:FindFirstChild(sName)
-                                if spawner then
-                                    for _, bot in pairs(spawner:GetChildren()) do
+                    -- Sucht den ersten Unterordner (dessen Name sich ständig ändert)
+                    local currentDungeon = dungeonStorage:FindFirstChildOfClass("Folder") or dungeonStorage:GetChildren()[1]
+                    
+                    if currentDungeon and currentDungeon:FindFirstChild("Important") then
+                        local important = currentDungeon.Important
+                        local spawners = {"Green", "Blue", "Purple", "Red", "PurpleBoss"}
+                        
+                        for _, sColor in pairs(spawners) do
+                            -- Suche alle Spawner-Objekte im Important-Ordner
+                            for _, obj in pairs(important:GetChildren()) do
+                                if obj.Name == sColor .. "EnemySpawner" then
+                                    for _, bot in pairs(obj:GetChildren()) do
                                         local hp = bot:GetAttribute("Health")
                                         local hrp = bot:FindFirstChild("HumanoidRootPart")
                                         
                                         if hp and hp > 0 and hrp then
                                             local char = Player.Character
                                             if char and char:FindFirstChild("HumanoidRootPart") then
-                                                -- Teleport über den Bot
-                                                local targetPos = hrp.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
-                                                char.HumanoidRootPart.CFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(-_G.Hub.Config.FarmAngle), 0, 0)
+                                                -- 90 Grad Winkel von oben teleportieren
+                                                char.HumanoidRootPart.CFrame = CFrame.new(hrp.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
                                                 
-                                                -- Warte bis Bot tot
+                                                -- Warten bis Bot besiegt oder Toggle aus
                                                 repeat task.wait(0.1) until not bot.Parent or bot:GetAttribute("Health") <= 0 or not _G.Hub.Toggles.AutoFarm
                                             end
                                         end
@@ -171,7 +168,7 @@ task.spawn(function()
             end)
         end
 
-        -- 5b. UPGRADES & INCUBATOR (Jede Sekunde)
+        -- B. UPGRADES & INCUBATOR (Check jede Sekunde)
         if tick() % 1 <= 0.1 then
             if _G.Hub.Toggles.AutoDungeonUpgrade and selUpgrade then
                 for i = 1, 10 do RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade, i) end
