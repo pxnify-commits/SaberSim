@@ -1,5 +1,5 @@
 -- ========================================================
--- 💰 MERCHANT MODULE (TYPE SELECTION FIXED)
+-- 💰 MERCHANT MODULE (60 MIN TIMER)
 -- ========================================================
 
 local Tab = _G.Hub["💰 Merchant"]
@@ -9,19 +9,26 @@ local RS = game:GetService("ReplicatedStorage")
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 
--- Variablen für den Counter
+-- Variablen
 local itemsBoughtCount = 0
 local MerchantOptions = {"Strength", "Coins", "Pet XP"}
 _G.Hub.Config.SelectedMerchantItem = MerchantOptions[1]
 
--- 1. FUNKTION: MERCHANT STATUS PRÜFEN
+-- 1. FUNKTIONEN FÜR STATUS UND TIMER
 local function GetMerchantStatus()
     local merchant = workspace:FindFirstChild("Merchant") or workspace:FindFirstChild("Travelling Merchant")
-    if merchant then
-        return "✅ Erschienen"
-    else
-        return "❌ Nicht da"
-    end
+    return merchant ~= nil
+end
+
+local function GetNextMerchantTime()
+    -- Berechnung für 60 Minuten (3600 Sekunden)
+    local interval = 3600
+    local timeInSeconds = math.floor(os.time() % interval)
+    local timeLeft = interval - timeInSeconds
+    
+    local minutes = math.floor(timeLeft / 60)
+    local seconds = timeLeft % 60
+    return string.format("%02d:%02d", minutes, seconds)
 end
 
 -- 2. UI ELEMENTE
@@ -54,34 +61,37 @@ Tab:CreateSlider({
     end
 })
 
-Tab:CreateSection("📊 Status & Info")
-local statusLabel = Tab:CreateLabel("Status: " .. GetMerchantStatus())
+Tab:CreateSection("📊 Status & Timer")
+local statusLabel = Tab:CreateLabel("Status: Prüfe...")
+local timerLabel = Tab:CreateLabel("Nächster Merchant in: --:--")
 local buyLabel = Tab:CreateLabel("Items gekauft: 0")
 
--- 3. MERCHANT LOGIK LOOP
+-- 3. MERCHANT LOGIK & TIMER LOOP
 task.spawn(function()
     while true do
-        task.wait(0.5) -- Status-Check
+        local isHere = GetMerchantStatus()
         
-        -- Status Label aktualisieren
-        statusLabel:Set("Status: " .. GetMerchantStatus())
+        -- Update Status & Timer
+        if isHere then
+            statusLabel:Set("Status: ✅ Erschienen!")
+            timerLabel:Set("Nächster Merchant in: Händler ist da!")
+        else
+            statusLabel:Set("Status: ❌ Nicht da")
+            timerLabel:Set("Nächster Merchant in: ~ " .. GetNextMerchantTime())
+        end
         
-        if _G.Hub.Toggles.AutoMerchant then
-            local merchant = workspace:FindFirstChild("Merchant") or workspace:FindFirstChild("Travelling Merchant")
+        -- Auto Buy Logik
+        if _G.Hub.Toggles.AutoMerchant and isHere then
             local itemToBuy = _G.Hub.Config.SelectedMerchantItem
-            
-            if merchant and itemToBuy then
-                pcall(function()
-                    -- Die korrekte Remote-Logik für den Merchant
-                    -- Argument 1: Aktion, Argument 2: Typ (Strength, Coins, etc.)
-                    RS.Events.UIAction:FireServer("BuyMerchantItem", itemToBuy)
-                    
-                    itemsBoughtCount = itemsBoughtCount + 1
-                    buyLabel:Set("Items gekauft: " .. tostring(itemsBoughtCount))
-                end)
-            end
-            
+            pcall(function()
+                -- Nutzt die UIAction Remote
+                RS.Events.UIAction:FireServer("BuyMerchantItem", itemToBuy)
+                itemsBoughtCount = itemsBoughtCount + 1
+                buyLabel:Set("Items gekauft: " .. tostring(itemsBoughtCount))
+            end)
             task.wait(_G.Hub.Config.MerchantSpeed or 0.5)
+        else
+            task.wait(1) -- Normaler Update-Takt jede Sekunde
         end
     end
 end)
