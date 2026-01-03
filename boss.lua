@@ -1,37 +1,26 @@
 -- ========================================================
--- 👹 BOSS MODULE (DYNAMIC TOOL DAMAGE LOGIC)
+-- 👹 BOSS MODULE (SMART FOLLOW & RETURN HOME)
 -- ========================================================
 
 local Tab = _G.Hub["👹 Boss"]
 local Player = game.Players.LocalPlayer
+local RS = game:GetService("ReplicatedStorage")
 
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 
-local bossesDefeated = 0
+local originalPosition = nil
+local isFarming = false
 
--- 1. UI ELEMENTE
-Tab:CreateSection("👹 Boss Farm Settings")
+-- 1. FUNKTIONEN
+local function GetBoss()
+    return workspace:FindFirstChild("Gameplay") 
+        and workspace.Gameplay.Boss.BossHolder:FindFirstChild("Boss")
+end
 
-Tab:CreateToggle({
-    Name = "Auto Boss Damage (Smart)",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.AutoBoss = v end
-})
-
-Tab:CreateToggle({
-    Name = "Auto Teleport to Boss",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.BossTP = v end
-})
-
-local winLabel = Tab:CreateLabel("Boss Siege: 0")
-
--- 2. FUNKTION: DAS AUSGERÜSTETE SCHWERT FINDEN
 local function GetEquippedSword()
     local char = Player.Character
     if char then
-        -- Sucht nach einem Tool im Charakter
         local tool = char:FindFirstChildOfClass("Tool")
         if tool and tool:FindFirstChild("RemoteClick") then
             return tool
@@ -40,56 +29,65 @@ local function GetEquippedSword()
     return nil
 end
 
--- 3. FUNKTION: DEN BOSS IM WORKSPACE FINDEN (Basierend auf deinem Log)
-local function GetBossTarget()
-    -- Laut deinem Spy-Log liegt der Boss hier:
-    local path = workspace:FindFirstChild("Gameplay")
-    if path and path:FindFirstChild("Boss") and path.Boss:FindFirstChild("BossHolder") then
-        return path.Boss.BossHolder:FindFirstChild("Boss")
-    end
-    return nil
-end
+-- 2. UI ELEMENTE
+Tab:CreateSection("👹 Smart Boss Farm")
 
--- 4. BOSS DAMAGE LOOP
-task.spawn(function()
-    while true do
-        task.wait(0.05) -- Schnelle Klicks
-        
-        if _G.Hub.Toggles.AutoBoss then
-            local sword = GetEquippedSword()
-            local target = GetBossTarget()
-            
-            if sword and target then
-                -- Teleport zum Boss (falls an)
-                if _G.Hub.Toggles.BossTP and Player.Character:FindFirstChild("HumanoidRootPart") then
-                    Player.Character.HumanoidRootPart.CFrame = target.CFrame * CFrame.new(0, 10, 0)
-                end
-                
-                -- DEINE SPY-LOGIK (Dynamisch angepasst)
-                pcall(function()
-                    local args = {
-                        [1] = {
-                            [1] = target
-                        }
-                    }
-                    -- Feuert die RemoteClick des aktuell gehaltenen Schwerts
-                    sword.RemoteClick:FireServer(unpack(args))
-                end)
+Tab:CreateToggle({
+    Name = "Start Boss Farm (with Return)",
+    CurrentValue = false,
+    Callback = function(v)
+        _G.Hub.Toggles.AutoBoss = v
+        if v then
+            -- Position merken, wenn der Toggle eingeschaltet wird
+            if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+                originalPosition = Player.Character.HumanoidRootPart.CFrame
+                print("🏠 Startposition gespeichert.")
+            end
+        else
+            -- Wenn ausgeschaltet wird, sofort zurück teleportieren
+            if originalPosition and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+                Player.Character.HumanoidRootPart.CFrame = originalPosition
+                print("🚀 Zurück zur Basis.")
             end
         end
     end
-end)
+})
 
--- 5. WIN DETECTION
+Tab:CreateLabel("Info: Farmt solange Boss da ist,")
+Tab:CreateLabel("danach TP zurück zur Startpos.")
+
+-- 3. HAUPT LOGIK LOOP
 task.spawn(function()
     while true do
-        task.wait(1)
-        local target = GetBossTarget()
-        if _G.Hub.Toggles.AutoBoss and target and target:FindFirstChild("Humanoid") then
-            if target.Humanoid.Health <= 0 then
-                bossesDefeated = bossesDefeated + 1
-                winLabel:Set("Boss Siege: " .. tostring(bossesDefeated))
-                task.wait(5) -- Warten auf Respawn
+        task.wait(0.05)
+        
+        if _G.Hub.Toggles.AutoBoss then
+            local boss = GetBoss()
+            local sword = GetEquippedSword()
+            local char = Player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+            -- Falls Boss da ist und lebt
+            if boss and boss:FindFirstChild("Humanoid") and boss.Humanoid.Health > 0 and hrp then
+                isFarming = true
+                
+                -- Follow/Stick Logik: Hinter den Boss teleportieren
+                hrp.CFrame = boss.CFrame * CFrame.new(0, 0, 4) -- 4 Studs Abstand
+                
+                -- Damage Logik (Deine SimpleSpy Remote)
+                if sword then
+                    pcall(function()
+                        local args = {[1] = {[1] = boss}}
+                        sword.RemoteClick:FireServer(unpack(args))
+                    end)
+                end
+            else
+                -- Boss ist weg oder tot -> Zurückkehren, falls wir gerade gefarmt haben
+                if isFarming and originalPosition and hrp then
+                    hrp.CFrame = originalPosition
+                    isFarming = false
+                    print("⌛ Boss weg, warte an Startposition...")
+                end
             end
         end
     end
