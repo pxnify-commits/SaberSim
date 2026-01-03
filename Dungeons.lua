@@ -1,14 +1,11 @@
 -- ========================================================
--- 🏰 DUNGEON MODULE (NO ERRORS & STRICT STRINGS)
+-- 🏰 DUNGEON MODULE (FINAL CLEAN VERSION)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
 local RS = game:GetService("ReplicatedStorage")
 
-_G.Hub.Config = _G.Hub.Config or {}
-_G.Hub.Toggles = _G.Hub.Toggles or {}
-
--- 1. VARIABLEN FÜR WERTE
+-- Lokale Speicher für die Auswahl (verhindert Table-Adressen Fehler)
 local selDungeon = "Space"
 local selDiff = "Easy"
 local selPrivacy = "Public"
@@ -17,7 +14,7 @@ local dungeonNames = {"Space"}
 local diffNames = {"Easy", "Medium", "Hard", "Impossible"}
 local diffMap = {["Easy"] = 1, ["Medium"] = 2, ["Hard"] = 3, ["Impossible"] = 4}
 
--- Daten dynamisch laden
+-- 1. DYNAMISCHE DATEN LADEN
 local function RefreshData()
     local success, Info = pcall(function() return require(RS.Modules:WaitForChild("DungeonInfo", 5)) end)
     if success and Info then
@@ -41,6 +38,7 @@ Tab:CreateDropdown({
     Options = dungeonNames,
     CurrentOption = "Space",
     Callback = function(opt) 
+        -- Extrahiert Text, egal ob Rayfield eine Tabelle oder einen String liefert
         selDungeon = (type(opt) == "table" and opt[1]) or tostring(opt)
     end
 })
@@ -66,25 +64,26 @@ Tab:CreateDropdown({
 Tab:CreateButton({
     Name = "🚀 Create Dungeon",
     Callback = function()
-        -- String-Sicherung
+        -- Wir erzwingen hier die sauberen Werte
         local pArg = tostring(selPrivacy)
         local dArg = tostring(selDungeon)
         local dNum = tonumber(diffMap[selDiff]) or 1
 
-        -- Notfall-Korrektur falls "table: 0x" durchrutscht
+        -- Letzter Check gegen "table: 0x..."
         if pArg:find("table:") then pArg = "Public" end
         if dArg:find("table:") then dArg = "Space" end
 
+        -- Remote feuern (Exakt wie dein SimpleSpy Beispiel)
         local args = {
             [1] = "DungeonGroupAction",
             [2] = "Create",
-            [3] = pArg,   -- GARANTIERT STRING ("Public"/"Friends")
-            [4] = dArg,   -- GARANTIERT STRING
-            [5] = dNum    -- GARANTIERT ZAHL
+            [3] = pArg,   -- String: "Public" oder "Friends"
+            [4] = dArg,   -- String: z.B. "Space"
+            [5] = dNum    -- Zahl: 1, 2, 3 oder 4
         }
         
         RS.Events.UIAction:FireServer(unpack(args))
-        print("Dungeon Create Fired: ", pArg, dArg, dNum)
+        print("Dungeon Create fired!")
     end
 })
 
@@ -121,7 +120,7 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoIncubator = v end
 })
 
--- 4. LOOP
+-- 4. LOOP (Upgrades & Incubator)
 task.spawn(function()
     while true do
         task.wait(1)
