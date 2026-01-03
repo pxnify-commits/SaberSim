@@ -1,10 +1,20 @@
 -- ========================================================
--- 🥚 GITHUB MODULE: AUTO EGG OPENER
+-- 🥚 GITHUB MODULE: AUTO EGG OPENER (FIXED)
 -- ========================================================
 
 local Tab = _G.Hub["🥚 Eggs"]
 local RS = game:GetService("ReplicatedStorage")
 local Player = game:GetService("Players").LocalPlayer
+
+-- Sicherer Zugriff auf den Egg-Ordner
+local Gameplay = game:GetService("Workspace"):WaitForChild("Gameplay")
+local EggsFolder = Gameplay:WaitForChild("Eggs", 10) -- Wartet bis zu 10 Sek
+
+-- Falls der Ordner immer noch nicht gefunden wird, breche ab um Fehler zu vermeiden
+if not EggsFolder then
+    warn("❌ Egg-Ordner konnte im Workspace nicht gefunden werden!")
+    return
+end
 
 -- Auswahl-Speicher
 _G.Hub.EggConfig = {
@@ -16,15 +26,14 @@ _G.Hub.EggConfig = {
 Tab:CreateSection("🐣 Egg Opener")
 
 local EggList = {}
--- Holt alle verfügbaren Eier aus dem Spiel (dynamisch)
-for _, egg in pairs(game:GetService("Workspace").Gameplay.Eggs:GetChildren()) do
+for _, egg in pairs(EggsFolder:GetChildren()) do
     table.insert(EggList, egg.Name)
 end
 
 Tab:CreateDropdown({
     Name = "Select Egg",
     Options = EggList,
-    CurrentOption = "Common Egg",
+    CurrentOption = EggList[1] or "None",
     Callback = function(Option)
         _G.Hub.EggConfig.SelectedEgg = Option
     end,
@@ -42,36 +51,18 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.EggConfig.MultiOpen = v end
 })
 
-Tab:CreateSection("🗑️ Management")
-
-Tab:CreateToggle({
-    Name = "Auto Delete Commons",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.DeleteCommon = v end
-})
-
 -- 2. EGG LOGIK LOOP
 task.spawn(function()
     while task.wait(0.5) do
         if _G.Hub.Toggles.AutoEgg then
             pcall(function()
+                -- Remote Namen müssen evtl. je nach Game-Update geprüft werden
                 local args = {
                     [1] = _G.Hub.EggConfig.SelectedEgg,
                     [2] = _G.Hub.EggConfig.MultiOpen and "Triple" or "Single"
                 }
-                -- Remote für das Öffnen von Eiern
                 RS.Events.EggOpened:FireServer(unpack(args))
             end)
-        end
-    end
-end)
-
--- Auto-Delete Logik (Beispielhaft, je nach Remote-Name)
-task.spawn(function()
-    while task.wait(2) do
-        if _G.Hub.Toggles.DeleteCommon then
-            -- Hier müsste die spezifische Remote für das Löschen von Pets rein
-            -- RS.Events.PetAction:FireServer("DeleteLowTier") 
         end
     end
 end)
