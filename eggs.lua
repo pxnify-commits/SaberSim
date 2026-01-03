@@ -1,39 +1,55 @@
 -- ========================================================
--- 🥚 GITHUB MODULE: EGG HATCHER (NATIVE ORDER)
+-- 🥚 GITHUB MODULE: EGG HATCHER (THE FINAL FIX)
 -- ========================================================
 
 local Tab = _G.Hub["🥚 Eggs"]
 local RS = game:GetService("ReplicatedStorage")
 local EggList = {}
 
--- 1. EIER DIREKT AUS DEM MODUL SAMMELN (Nativ)
-local success, PetShopInfo = pcall(function()
-    return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo"))
-end)
+-- 1. SCAN FUNKTION (DEIN TEST-SCRIPT ALS BASIS)
+local function LoadEggs()
+    local success, PetShopInfo = pcall(function()
+        return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo", 10))
+    end)
 
-if success then
-    -- Funktion scannt einfach alles durch
-    local function scan(t)
-        for k, v in pairs(t) do
-            if type(v) == "table" then
-                if v.EggName then
-                    -- Einfach in die Liste werfen (Reihenfolge bleibt nativ)
-                    if not table.find(EggList, v.EggName) then
+    if success and PetShopInfo then
+        -- Wir leeren die Liste vorher, um sicher zu sein
+        EggList = {}
+        
+        local function scan(t)
+            for k, v in pairs(t) do
+                if type(v) == "table" then
+                    if v.EggName then
+                        -- Wir fügen es ein, wenn es "EggName" besitzt
                         table.insert(EggList, v.EggName)
+                    else
+                        scan(v) -- Untertabellen
                     end
-                else
-                    scan(v) -- Untertabellen scannen
                 end
             end
         end
+        scan(PetShopInfo)
     end
-    scan(PetShopInfo)
 end
 
--- 2. UI ELEMENTE (Dein Layout)
+-- 2. ERZWINGE DAS LADEN (Wartet bis Daten da sind)
+LoadEggs()
+
+-- Wenn er nach dem ersten Mal nichts findet, versuchen wir es kurz erneut
+if #EggList <= 2 then
+    task.wait(1)
+    LoadEggs()
+end
+
+-- Backup nur, wenn ABSOLUT nichts im Modul gefunden wurde
+if #EggList == 0 then
+    EggList = {"Common Egg", "Uncommon Egg"}
+end
+
+-- 3. UI ELEMENTE (DEIN LAYOUT)
 Tab:CreateSection("🥚 Egg Hatching")
 
-if #EggList > 0 then
+if #EggList > 2 or EggList[1] ~= "Common Egg" then
     Tab:CreateDropdown({
         Name = "Select Egg",
         Options = EggList,
@@ -43,7 +59,7 @@ if #EggList > 0 then
         end
     })
 else
-    Tab:CreateLabel("⚠️ Keine Eggs gefunden")
+    Tab:CreateLabel("⚠️ Nur Backup-Eggs geladen")
 end
 
 Tab:CreateToggle({
@@ -69,10 +85,9 @@ Tab:CreateSlider({
 })
 
 Tab:CreateSection("📊 Info")
--- Dieses Label zeigt jetzt die exakte Zahl aus der unberührten Liste an
 Tab:CreateLabel("Gefundene Eggs: " .. tostring(#EggList))
 
--- 3. HATCH LOOP
+-- 4. HATCH LOOP
 task.spawn(function()
     while task.wait() do
         if _G.Hub.Toggles.AutoHatch then
