@@ -1,11 +1,11 @@
 -- ========================================================
--- 🏰 DUNGEON MODULE (FINAL CLEAN VERSION)
+-- 🏰 DUNGEON MODULE (NO ERRORS - FULLY DYNAMIC)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
 local RS = game:GetService("ReplicatedStorage")
 
--- Lokale Speicher für die Auswahl (verhindert Table-Adressen Fehler)
+-- Lokale Speicher (verhindert Table-Adressen Fehler)
 local selDungeon = "Space"
 local selDiff = "Easy"
 local selPrivacy = "Public"
@@ -14,7 +14,7 @@ local dungeonNames = {"Space"}
 local diffNames = {"Easy", "Medium", "Hard", "Impossible"}
 local diffMap = {["Easy"] = 1, ["Medium"] = 2, ["Hard"] = 3, ["Impossible"] = 4}
 
--- 1. DYNAMISCHE DATEN LADEN
+-- 1. DYNAMISCHE DATEN LADEN (Bleibt voll dynamisch!)
 local function RefreshData()
     local success, Info = pcall(function() return require(RS.Modules:WaitForChild("DungeonInfo", 5)) end)
     if success and Info then
@@ -24,7 +24,7 @@ local function RefreshData()
         diffMap = {}
         for index, data in ipairs(Info.Difficulties) do
             table.insert(diffNames, data.Name)
-            diffMap[data.Name] = index
+            diffMap[data.Name] = index -- Dynamischer Index (1, 2, 3...)
         end
     end
 end
@@ -38,7 +38,6 @@ Tab:CreateDropdown({
     Options = dungeonNames,
     CurrentOption = "Space",
     Callback = function(opt) 
-        -- Extrahiert Text, egal ob Rayfield eine Tabelle oder einen String liefert
         selDungeon = (type(opt) == "table" and opt[1]) or tostring(opt)
     end
 })
@@ -64,26 +63,25 @@ Tab:CreateDropdown({
 Tab:CreateButton({
     Name = "🚀 Create Dungeon",
     Callback = function()
-        -- Wir erzwingen hier die sauberen Werte
+        -- String-Sicherung gegen "table: 0x..."
         local pArg = tostring(selPrivacy)
         local dArg = tostring(selDungeon)
         local dNum = tonumber(diffMap[selDiff]) or 1
 
-        -- Letzter Check gegen "table: 0x..."
         if pArg:find("table:") then pArg = "Public" end
         if dArg:find("table:") then dArg = "Space" end
 
-        -- Remote feuern (Exakt wie dein SimpleSpy Beispiel)
+        -- Remote feuern
         local args = {
             [1] = "DungeonGroupAction",
             [2] = "Create",
-            [3] = pArg,   -- String: "Public" oder "Friends"
-            [4] = dArg,   -- String: z.B. "Space"
-            [5] = dNum    -- Zahl: 1, 2, 3 oder 4
+            [3] = pArg,
+            [4] = dArg,
+            [5] = dNum
         }
         
         RS.Events.UIAction:FireServer(unpack(args))
-        print("Dungeon Create fired!")
+        -- KEIN Notify mehr hier -> Verhindert Callback Error
     end
 })
 
@@ -120,7 +118,7 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoIncubator = v end
 })
 
--- 4. LOOP (Upgrades & Incubator)
+-- 4. LOGIK LOOP
 task.spawn(function()
     while true do
         task.wait(1)
