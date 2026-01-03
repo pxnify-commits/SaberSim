@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON MODULE (FINAL & FIXED)
+-- 🏰 DUNGEON MODULE (STRICT STRING & DYNAMIC INDEX)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -8,7 +8,6 @@ local RS = game:GetService("ReplicatedStorage")
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 
--- Tabellen für dynamische Daten
 local dungeonNames = {}
 local diffNames = {}
 local diffMap = {}
@@ -39,7 +38,6 @@ local function RefreshDungeonData()
         diffMap = {["Easy"] = 1, ["Medium"] = 2, ["Hard"] = 3, ["Impossible"] = 4}
     end
 end
-
 RefreshDungeonData()
 
 -- 2. UI: DUNGEON CREATION
@@ -71,15 +69,18 @@ Tab:CreateDropdown({
 Tab:CreateButton({
     Name = "🚀 Create Dungeon",
     Callback = function()
-        -- FIX: Argument [3] ist jetzt ein einfacher String, genau wie im Log!
-        local privacyArg = _G.Hub.Config.DungeonPrivacy or "Public"
+        -- Wir stellen sicher, dass privacy ein reiner String ist (Keine Tabelle!)
+        local privacySetting = tostring(_G.Hub.Config.DungeonPrivacy or "Public")
+        local dungeonSetting = tostring(_G.Hub.Config.SelectedDungeon or "Space")
+        local difficultyInt = tonumber(_G.Hub.Config.SelectedDiffValue) or 1
         
+        -- EXAKTER AUFBAU WIE IN DEINEM BEISPIEL
         local args = {
             [1] = "DungeonGroupAction",
             [2] = "Create",
-            [3] = privacyArg,
-            [4] = _G.Hub.Config.SelectedDungeon or "Space",
-            [5] = _G.Hub.Config.SelectedDiffValue or 1
+            [3] = privacySetting, -- REINER STRING ("Public" oder "Friends")
+            [4] = dungeonSetting, -- REINER STRING ("Space")
+            [5] = difficultyInt   -- REINE ZAHL (1, 2, 3, 4)
         }
         
         RS.Events.UIAction:FireServer(unpack(args))
@@ -89,7 +90,6 @@ Tab:CreateButton({
 -- 3. UI: AUTO UPGRADES
 Tab:CreateSection("🆙 Dungeon Upgrades")
 
-local upgradeDisplayNames = {"Health", "Damage", "Crit Chance", "Incubator Slots", "Incubator Speed", "Coins Boost", "Crowns Boost"}
 local upgradeTechnicalNames = {
     ["Health"] = "DungeonHealth",
     ["Damage"] = "DungeonDamage",
@@ -102,7 +102,7 @@ local upgradeTechnicalNames = {
 
 Tab:CreateDropdown({
     Name = "Select Upgrade",
-    Options = upgradeDisplayNames,
+    Options = {"Health", "Damage", "Crit Chance", "Incubator Slots", "Incubator Speed", "Coins Boost", "Crowns Boost"},
     CurrentOption = "Health",
     Callback = function(opt)
         _G.Hub.Config.CurrentUpgradeTech = upgradeTechnicalNames[opt]
@@ -135,13 +135,11 @@ Tab:CreateToggle({
 task.spawn(function()
     while true do
         task.wait(1)
-        
         if _G.Hub.Toggles.AutoDungeonUpgrade and _G.Hub.Config.CurrentUpgradeTech then
             for i = 1, 10 do
                 RS.Events.UIAction:FireServer("BuyDungeonUpgrade", _G.Hub.Config.CurrentUpgradeTech, i)
             end
         end
-
         if _G.Hub.Toggles.AutoIncubator then
             RS.Events.UIAction:FireServer("IncubatorAction", "ClaimAll")
         end
