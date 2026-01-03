@@ -1,5 +1,5 @@
 -- ========================================================
--- 📜 GITHUB MODULE: FARMING & PRIORITY (SORTED UI)
+-- 📜 GITHUB MODULE: FARMING & PRIORITY (INPUT SYSTEM)
 -- ========================================================
 
 local Tab = _G.Hub["🏠 Farming"]
@@ -7,7 +7,7 @@ local RS = game:GetService("ReplicatedStorage")
 local Player = game:GetService("Players").LocalPlayer
 local Workspace = game:GetService("Workspace")
 
--- 1. UI ELEMENTE IN DEINER GEWÜNSCHTEN REIHENFOLGE
+-- 1. UI ELEMENTE
 Tab:CreateSection("⚔️ Basic Farming")
 
 Tab:CreateToggle({
@@ -70,31 +70,34 @@ Tab:CreateToggle({
 
 Tab:CreateSection("⚡ Priority Settings (1-100)")
 
-Tab:CreateToggle({
-    Name = "Use Priority System",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.UsePriority = v end
-})
-
-Tab:CreateSlider({
+Tab:CreateInput({
     Name = "Priority Sabers",
-    Range = {1, 100}, Increment = 1, CurrentValue = 1,
-    Callback = function(v) _G.Hub.Config.SaberPrio = v end
+    PlaceholderText = "1-100",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        _G.Hub.Config.SaberPrio = tonumber(Text) or 1
+    end,
 })
 
-Tab:CreateSlider({
+Tab:CreateInput({
     Name = "Priority DNAs",
-    Range = {1, 100}, Increment = 1, CurrentValue = 2,
-    Callback = function(v) _G.Hub.Config.DNAPrio = v end
+    PlaceholderText = "1-100",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        _G.Hub.Config.DNAPrio = tonumber(Text) or 2
+    end,
 })
 
-Tab:CreateSlider({
+Tab:CreateInput({
     Name = "Priority Classes",
-    Range = {1, 100}, Increment = 1, CurrentValue = 3,
-    Callback = function(v) _G.Hub.Config.ClassPrio = v end
+    PlaceholderText = "1-100",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        _G.Hub.Config.ClassPrio = tonumber(Text) or 3
+    end,
 })
 
--- 2. DIE LOGIK-LOOPS (Bleiben im Hintergrund aktiv)
+-- 2. LOGIK-LOOPS
 
 -- Farming Loop
 task.spawn(function()
@@ -123,23 +126,24 @@ task.spawn(function()
         if _G.Hub.Toggles.BuyPetAuras then RS.Events.UIAction:FireServer("BuyAllPetAuras") end
         if _G.Hub.Toggles.BuyBossHits then RS.Events.UIAction:FireServer("BuyAllBossHits") end
 
-        if _G.Hub.Toggles.UsePriority then
-            local pQueue = {
-                {ID = "S", P = _G.Hub.Config.SaberPrio or 1, Active = _G.Hub.Toggles.BuySabers, Remote = "BuyAllWeapons"},
-                {ID = "D", P = _G.Hub.Config.DNAPrio or 2, Active = _G.Hub.Toggles.BuyDNA, Remote = "BuyAllDNAs"},
-                {ID = "C", P = _G.Hub.Config.ClassPrio or 3, Active = _G.Hub.Toggles.BuyClasses}
-            }
-            table.sort(pQueue, function(a, b) return a.P < b.P end)
-            for _, item in ipairs(pQueue) do
-                if item.Active then
-                    if item.ID == "C" then
-                        pcall(function()
-                            local classes = require(RS.Modules.ItemInfo.Classes)
-                            for name, _ in pairs(classes) do RS.Events.UIAction:FireServer("BuyClass", name) end
-                        end)
-                    else
-                        RS.Events.UIAction:FireServer(item.Remote)
-                    end
+        -- Priority Logik (Sortiert basierend auf Input-Zahlen)
+        local pQueue = {
+            {ID = "S", P = _G.Hub.Config.SaberPrio or 1, Active = _G.Hub.Toggles.BuySabers, Remote = "BuyAllWeapons"},
+            {ID = "D", P = _G.Hub.Config.DNAPrio or 2, Active = _G.Hub.Toggles.BuyDNA, Remote = "BuyAllDNAs"},
+            {ID = "C", P = _G.Hub.Config.ClassPrio or 3, Active = _G.Hub.Toggles.BuyClasses}
+        }
+        
+        table.sort(pQueue, function(a, b) return a.P < b.P end)
+        
+        for _, item in ipairs(pQueue) do
+            if item.Active then
+                if item.ID == "C" then
+                    pcall(function()
+                        local classes = require(RS.Modules.ItemInfo.Classes)
+                        for name, _ in pairs(classes) do RS.Events.UIAction:FireServer("BuyClass", name) end
+                    end)
+                else
+                    RS.Events.UIAction:FireServer(item.Remote)
                 end
             end
         end
