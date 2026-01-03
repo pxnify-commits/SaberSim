@@ -1,5 +1,5 @@
 -- ========================================================
--- 🥚 GITHUB MODULE: EGG HATCHER (WITH LOAD INFO)
+-- 🥚 GITHUB MODULE: EGG HATCHER (FIXED INFO)
 -- ========================================================
 
 local Tab = _G.Hub["🥚 Eggs"]
@@ -10,16 +10,16 @@ local SelectedEgg = ""
 -- 1. LOGIK: EIER IN STRENGER REIHENFOLGE EXTRAHIEREN
 local function CollectEggNames()
     local success, PetShopInfo = pcall(function()
-        return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo"))
+        -- Wir warten kurz, bis das Modul wirklich da ist
+        return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo", 10))
     end)
 
-    if success then
+    if success and PetShopInfo then
         local function scan(t)
-            -- Wir prüfen zuerst auf numerische Indizes (Reihenfolge der Welten)
             local keys = {}
             for k in pairs(t) do table.insert(keys, k) end
             
-            -- Sortiere Keys, damit [1] vor [2] kommt
+            -- Numerische Sortierung der Welten/Eier
             table.sort(keys, function(a, b)
                 if type(a) == "number" and type(b) == "number" then return a < b end
                 return tostring(a) < tostring(b)
@@ -33,7 +33,7 @@ local function CollectEggNames()
                             table.insert(EggList, v.EggName)
                         end
                     else
-                        scan(v) -- Tiefer in die Welten/Bereiche gehen
+                        scan(v)
                     end
                 end
             end
@@ -42,16 +42,16 @@ local function CollectEggNames()
     end
 end
 
+-- Suche ausführen
 CollectEggNames()
 
--- Notfall-Liste
+-- Notfall-Liste falls leer
 if #EggList == 0 then
     EggList = {"Common Egg", "Uncommon Egg"}
 end
-
 SelectedEgg = EggList[1]
 
--- 2. UI ELEMENTE
+-- 2. UI ELEMENTE (Jetzt werden sie erstellt)
 Tab:CreateSection("🐣 Egg Selection")
 
 Tab:CreateDropdown({ 
@@ -83,12 +83,15 @@ Tab:CreateToggle({
     end 
 })
 
--- 3. INFO SEKTION (Wie viele wurden geladen)
+-- 3. INFO SEKTION (Fest im Menü verankert)
 Tab:CreateSection("📊 Status Info")
 
-Tab:CreateLabel("✅ " .. #EggList .. " Eggs erfolgreich geladen")
+-- Wir erstellen das Label mit der Anzahl
+local infoLabel = Tab:CreateLabel("Geladene Eier: " .. tostring(#EggList))
 
-if #EggList > 0 then
-    Tab:CreateLabel("Erstes Ei: " .. EggList[1])
-    Tab:CreateLabel("Letztes Ei: " .. EggList[#EggList])
+-- Ein kleiner Test-Print in die Console (F9), damit du siehst ob es im Hintergrund klappt
+print("--- SABER SIM DEBUG ---")
+print("Anzahl Eier in Liste: " .. #EggList)
+for i, name in ipairs(EggList) do
+    print(i .. ". " .. name)
 end
