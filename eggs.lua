@@ -1,5 +1,5 @@
 -- ========================================================
--- 🥚 GITHUB MODULE: EGG HATCHER (STRICT ORDER)
+-- 🥚 GITHUB MODULE: EGG HATCHER (WITH LOAD INFO)
 -- ========================================================
 
 local Tab = _G.Hub["🥚 Eggs"]
@@ -14,45 +14,39 @@ local function CollectEggNames()
     end)
 
     if success then
-        -- Funktion zum Scannen, die numerische Reihenfolge bevorzugt
         local function scan(t)
-            -- Zuerst versuchen wir es numerisch (1, 2, 3...), um die Reihenfolge zu halten
-            for i = 1, 100 do -- Geht bis zu 100 mögliche Einträge/Welten durch
-                local v = t[i] or t[tostring(i)]
-                if v and type(v) == "table" then
-                    if v.EggName then
-                        table.insert(EggList, v.EggName)
-                    else
-                        scan(v) -- Tiefer graben (z.B. in Welten-Untertabellen)
-                    end
-                end
-            end
+            -- Wir prüfen zuerst auf numerische Indizes (Reihenfolge der Welten)
+            local keys = {}
+            for k in pairs(t) do table.insert(keys, k) end
             
-            -- Falls die Eier nicht numerisch sind, nutzen wir pairs als Backup
-            -- (Aber nur für Dinge, die wir oben nicht schon gefunden haben)
-            for k, v in pairs(t) do
-                if type(v) == "table" and not tonumber(k) then
+            -- Sortiere Keys, damit [1] vor [2] kommt
+            table.sort(keys, function(a, b)
+                if type(a) == "number" and type(b) == "number" then return a < b end
+                return tostring(a) < tostring(b)
+            end)
+
+            for _, k in ipairs(keys) do
+                local v = t[k]
+                if type(v) == "table" then
                     if v.EggName then
                         if not table.find(EggList, v.EggName) then
                             table.insert(EggList, v.EggName)
                         end
                     else
-                        scan(v)
+                        scan(v) -- Tiefer in die Welten/Bereiche gehen
                     end
                 end
             end
         end
         scan(PetShopInfo)
-    else
-        warn("❌ Fehler beim Laden von PetShopInfo!")
     end
 end
 
 CollectEggNames()
 
--- Notfall-Eier
+-- Notfall-Liste
 if #EggList == 0 then
-    EggList = {"Common Egg", "Uncommon Egg", "Rare Egg"}
+    EggList = {"Common Egg", "Uncommon Egg"}
 end
 
 SelectedEgg = EggList[1]
@@ -88,3 +82,13 @@ Tab:CreateToggle({
         end
     end 
 })
+
+-- 3. INFO SEKTION (Wie viele wurden geladen)
+Tab:CreateSection("📊 Status Info")
+
+Tab:CreateLabel("✅ " .. #EggList .. " Eggs erfolgreich geladen")
+
+if #EggList > 0 then
+    Tab:CreateLabel("Erstes Ei: " .. EggList[1])
+    Tab:CreateLabel("Letztes Ei: " .. EggList[#EggList])
+end
