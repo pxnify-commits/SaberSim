@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON MODULE (EXACT REMOTE LOGIC)
+-- 🏰 DUNGEON MODULE (DYNAMIC SCANNER)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -8,47 +8,65 @@ local RS = game:GetService("ReplicatedStorage")
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 
-local dungeonList = {"Space"} -- Standardwert
-local difficultyMap = {
-    ["Easy"] = 1,
-    ["Medium"] = 2,
-    ["Hard"] = 3,
-    ["Impossible"] = 4
-}
+-- Tabellen für dynamische Daten
+local dungeonNames = {}
+local diffNames = {}
+local diffMap = {} -- Speichert { ["Easy"] = 1, ["Medium"] = 2 ... }
 
--- 1. DATEN DYNAMISCH LADEN (Dungeon Namen)
-local function LoadDungeonNames()
-    local success, Info = pcall(function() return require(RS.Modules.DungeonInfo) end)
-    if success and Info and Info.Dungeons then
-        dungeonList = {}
+-- 1. DYNAMISCHER SCANNER (Liest DungeonInfo Modul)
+local function RefreshDungeonData()
+    local success, Info = pcall(function() 
+        return require(RS.Modules:WaitForChild("DungeonInfo", 10)) 
+    end)
+    
+    if success and Info then
+        -- Dungeons scannen
+        dungeonNames = {}
         for name, _ in pairs(Info.Dungeons) do
-            table.insert(dungeonList, name)
+            table.insert(dungeonNames, name)
         end
+        
+        -- Difficulties scannen (Wichtig für Dynamik!)
+        diffNames = {}
+        diffMap = {}
+        for index, diffData in ipairs(Info.Difficulties) do
+            local name = diffData.Name
+            table.insert(diffNames, name)
+            diffMap[name] = index -- Der Index (1, 2, 3...) ist der Wert für den Server
+        end
+    else
+        -- Fallback falls Modul nicht lädt
+        dungeonNames = {"Space"}
+        diffNames = {"Easy", "Medium", "Hard", "Impossible"}
+        diffMap = {["Easy"] = 1, ["Medium"] = 2, ["Hard"] = 3, ["Impossible"] = 4}
     end
 end
-LoadDungeonNames()
 
--- 2. UI ELEMENTE
+RefreshDungeonData()
+
+-- 2. UI: DUNGEON CREATION
 Tab:CreateSection("🏰 Create Dungeon Group")
 
 Tab:CreateDropdown({
     Name = "Select Dungeon",
-    Options = dungeonList,
-    CurrentOption = dungeonList[1],
+    Options = dungeonNames,
+    CurrentOption = dungeonNames[1] or "Space",
     Callback = function(opt) _G.Hub.Config.SelectedDungeon = opt end
 })
 
 Tab:CreateDropdown({
-    Name = "Select Difficulty",
-    Options = {"Easy", "Medium", "Hard", "Impossible"},
-    CurrentOption = "Easy",
+    Name = "Difficulty",
+    Options = diffNames,
+    CurrentOption = diffNames[1] or "Easy",
     Callback = function(opt) 
-        _G.Hub.Config.SelectedDiffValue = difficultyMap[opt] or 1
+        -- Holt sich die Zahl automatisch aus dem Map-Index
+        _G.Hub.Config.SelectedDiffValue = diffMap[opt] or 1
+        print("Selected Difficulty Index:", _G.Hub.Config.SelectedDiffValue)
     end
 })
 
 Tab:CreateDropdown({
-    Name = "Privacy Settings",
+    Name = "Privacy",
     Options = {"Public", "Friends"},
     CurrentOption = "Public",
     Callback = function(opt) _G.Hub.Config.DungeonPrivacy = opt end
@@ -57,17 +75,10 @@ Tab:CreateDropdown({
 Tab:CreateButton({
     Name = "🚀 Create Dungeon",
     Callback = function()
-        -- Logik basierend auf deinen SimpleSpy Logs:
-        -- Public muss eine Tabelle sein: {[1] = "Public"}
-        -- Friends muss ein einfacher String sein: "Friends"
+        local privacyArg = {
+            [1] = _G.Hub.Config.DungeonPrivacy or "Public"
+        }
         
-        local privacyArg
-        if _G.Hub.Config.DungeonPrivacy == "Public" then
-            privacyArg = {[1] = "Public"}
-        else
-            privacyArg = "Friends"
-        end
-
         local args = {
             [1] = "DungeonGroupAction",
             [2] = "Create",
@@ -77,14 +88,12 @@ Tab:CreateButton({
         }
         
         RS.Events.UIAction:FireServer(unpack(args))
-        print("Dungeon erstellt mit Diff:", args[5])
     end
 })
 
--- 3. AUTO UPGRADES SECTION
+-- 3. UI: AUTO UPGRADES (Inklusive technischer Namen)
 Tab:CreateSection("🆙 Dungeon Upgrades")
 
-local upgradeDisplayNames = {"Health", "Damage", "Crit Chance", "Incubator Slots", "Incubator Speed", "Coins Boost", "Crowns Boost"}
 local upgradeTechnicalNames = {
     ["Health"] = "DungeonHealth",
     ["Damage"] = "DungeonDamage",
@@ -97,7 +106,7 @@ local upgradeTechnicalNames = {
 
 Tab:CreateDropdown({
     Name = "Select Upgrade",
-    Options = upgradeDisplayNames,
+    Options = {"Health", "Damage", "Crit Chance", "Incubator Slots", "Incubator Speed", "Coins Boost", "Crowns Boost"},
     CurrentOption = "Health",
     Callback = function(opt)
         _G.Hub.Config.CurrentUpgradeTech = upgradeTechnicalNames[opt]
@@ -114,12 +123,13 @@ Tab:CreateToggle({
 task.spawn(function()
     while true do
         task.wait(1)
-        
         if _G.Hub.Toggles.AutoDungeonUpgrade and _G.Hub.Config.CurrentUpgradeTech then
-            -- Wir versuchen Tier 1 bis 10 zu kaufen (Server entscheidet, welches bezahlbar ist)
             for i = 1, 10 do
                 RS.Events.UIAction:FireServer("BuyDungeonUpgrade", _G.Hub.Config.CurrentUpgradeTech, i)
             end
+        end
+        if _G.Hub.Toggles.AutoIncubator then
+            RS.Events.UIAction:FireServer("IncubatorAction", "ClaimAll")
         end
     end
 end)
