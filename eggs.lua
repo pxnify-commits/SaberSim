@@ -1,76 +1,70 @@
 -- ========================================================
--- 🥚 GITHUB MODULE: EGG HATCHING
+-- 🥚 GITHUB MODULE: ADVANCED EGG HATCHER
 -- ========================================================
 
-local Tab = _G.Hub["🥚 Eggs"] -- Muss exakt wie im Loader heißen
+local Tab = _G.Hub["🥚 Eggs"] -- Holt den Tab vom Loader
 local RS = game:GetService("ReplicatedStorage")
 
--- Variablen im globalen Speicher registrieren
-_G.Hub.Settings = _G.Hub.Settings or {}
-_G.Hub.Settings.SelectedEgg = "Common Egg"
-_G.Hub.Settings.EggHatchDelay = 0.3
-
--- Eier suchen
+-- 1. EGG LISTE AUS DEN SPIEL-DATEN HOLEN
 local EggList = {}
-local eggsFolder = workspace:WaitForChild("Gameplay"):WaitForChild("Eggs", 5)
+local SelectedEgg = ""
 
-if eggsFolder then
-    for _, v in pairs(eggsFolder:GetChildren()) do
-        table.insert(EggList, v.Name)
+pcall(function() 
+    -- Lädt die offiziellen Spieldaten für Eier
+    local info = require(RS.Modules.ItemInfo.PetShopInfo) -- Pfad evtl. ItemInfo oder PetsInfo
+    local function collect(t) 
+        for k,v in pairs(t) do 
+            if type(v) == "table" then 
+                if v.EggName then 
+                    table.insert(EggList, v.EggName) 
+                else 
+                    collect(v) 
+                end 
+            end 
+        end 
     end
+    collect(info)
+end)
+
+-- Falls das Modul nicht gefunden wurde, Standard-Eier setzen
+if #EggList == 0 then 
+    EggList = {"Common Egg", "Uncommon Egg", "Rare Egg", "Epic Egg"} 
 end
 
--- 1. UI ELEMENTE (Dein Layout)
-Tab:CreateSection("🥚 Egg Hatching")
+SelectedEgg = EggList[1]
 
-if #EggList > 0 then
-    Tab:CreateDropdown({
-        Name = "Select Egg",
-        Options = EggList,
-        CurrentOption = EggList[1],
-        Callback = function(opt)
-            -- Fix für Rayfield-Tabellen-Rückgabe
-            _G.Hub.Settings.SelectedEgg = type(opt) == "table" and opt[1] or opt
+-- 2. UI ELEMENTE
+Tab:CreateSection("🐣 Selection")
+
+Tab:CreateDropdown({ 
+    Name = "Select Egg", 
+    Options = EggList, 
+    CurrentOption = EggList[1], 
+    Callback = function(o) 
+        SelectedEgg = type(o) == "table" and o[1] or o 
+    end 
+})
+
+Tab:CreateSection("🔥 Hatching")
+
+Tab:CreateToggle({ 
+    Name = "Auto Hatch", 
+    CurrentValue = false, 
+    Callback = function(v) 
+        _G.Hub.Toggles.AutoHatch = v 
+        if v then
+            task.spawn(function() 
+                while _G.Hub.Toggles.AutoHatch do 
+                    if SelectedEgg and SelectedEgg ~= "" then 
+                        -- Saber Simulator nutzt oft "BuyEgg" für das Öffnen
+                        RS.Events.UIAction:FireServer("BuyEgg", SelectedEgg) 
+                    end 
+                    task.wait(0.3) -- Geschwindigkeit des Öffnens
+                end 
+            end)
         end
-    })
-else
-    Tab:CreateLabel("⚠️ Keine Eggs gefunden")
-end
-
-Tab:CreateToggle({
-    Name = "Auto Hatch",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.AutoHatch = v end
-})
-
-Tab:CreateToggle({
-    Name = "Hide Egg Open Animation",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.HideEggAnimation = v end
-})
-
-Tab:CreateSlider({
-    Name = "Hatch Delay (seconds)",
-    Range = {0.1, 2},
-    Increment = 0.1,
-    CurrentValue = 0.3,
-    Callback = function(v)
-        _G.Hub.Settings.EggHatchDelay = v
-    end
+    end 
 })
 
 Tab:CreateSection("📊 Info")
-Tab:CreateLabel("Gefundene Eggs: " .. #EggList)
-
--- 2. DER HATCH-LOOP
-task.spawn(function()
-    while task.wait() do
-        if _G.Hub.Toggles.AutoHatch then
-            pcall(function()
-                -- Das Event im Saber Simulator zum Öffnen
-                RS.Events.EggOpened:FireServer(_G.Hub.Settings.SelectedEgg)
-            end)
-            task.wait(_G.Hub.Settings.EggHatchDelay)
-        end
-    end
-end)
+Tab:CreateLabel("Gefundene Eier: " .. #EggList)
