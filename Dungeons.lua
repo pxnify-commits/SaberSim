@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON DYNAMIC MASTER (ERROR-BACKUP & SLIDER FIX)
+-- 🏰 DUNGEON DYNAMIC MASTER (BACKUP VERSION)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -8,16 +8,15 @@ local WS = game:GetService("Workspace")
 local Player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 
--- Initialisierung der Konfiguration
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
-_G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10 -- Standardwert
+_G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10
 
 local currentTarget = nil
 local dungeonNames, diffNames, diffMap = {}, {}, {}
 local selDungeon, selDiff = "", ""
 
--- 1. DYNAMISCHE DATEN MIT EXAKTEN ERROR-BACKUPS
+-- 1. DYNAMISCHE DATEN MIT BACKUP-NAMEN
 local function RefreshDungeonData()
     local success, Info = pcall(function() 
         return require(RS.Modules:WaitForChild("DungeonInfo", 3)) 
@@ -34,20 +33,15 @@ local function RefreshDungeonData()
             diffMap[data.Name] = index
         end
     else
-        warn("⚠️ Modul nicht gefunden! Benutze Error-Backups.")
-        -- DEINE VORGABEN:
+        warn("⚠️ Modul nicht gefunden! Benutze Backup-Namen.")
+        -- Deine gewünschten Backup-Namen
         dungeonNames = {"Error404", "Error405", "Error406", "Error407", "Error505"}
-        diffNames = {"Error408", "Error409", "Error410", "Error411"}
-        diffMap = {
-            ["Error408"] = 1, 
-            ["Error409"] = 2, 
-            ["Error410"] = 3, 
-            ["Error411"] = 4
-        }
+        diffNames = {"Easy", "Medium", "Hard", "Nightmare"}
+        diffMap = {["Easy"] = 1, ["Medium"] = 2, ["Hard"] = 3, ["Nightmare"] = 4}
     end
     
     selDungeon = dungeonNames[1] or "Error404"
-    selDiff = diffNames[1] or "Error408"
+    selDiff = diffNames[1] or "Easy"
 end
 RefreshDungeonData()
 
@@ -60,6 +54,7 @@ Tab:CreateDropdown({
     CurrentOption = selDungeon, 
     Callback = function(v) 
         selDungeon = (type(v) == "table" and v[1]) or tostring(v) 
+        print("📍 Dungeon ausgewählt: " .. selDungeon)
     end
 })
 
@@ -69,6 +64,7 @@ Tab:CreateDropdown({
     CurrentOption = selDiff, 
     Callback = function(v) 
         selDiff = (type(v) == "table" and v[1]) or tostring(v) 
+        print("📊 Schwierigkeit ausgewählt: " .. selDiff)
     end
 })
 
@@ -76,6 +72,7 @@ Tab:CreateButton({
     Name = "🔨 Create Lobby", 
     Callback = function() 
         local dIndex = diffMap[selDiff] or 1
+        -- Nutzt selDungeon (kann Error404, Error505 etc. sein)
         RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", "Public", selDungeon, dIndex) 
     end
 })
@@ -87,7 +84,7 @@ Tab:CreateButton({
     end
 })
 
--- 3. UI SECTION: FARMING (SLIDER FIX)
+-- 3. UI SECTION: FARMING
 Tab:CreateSection("⚔️ Dungeon Farming")
 
 Tab:CreateToggle({
@@ -105,15 +102,11 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoSwing = v end
 })
 
--- FIX: Slider schreibt jetzt garantiert in die genutzte Variable
 Tab:CreateSlider({
-    Name = "Farm Height (Abstand)", 
-    Min = 2, 
-    Max = 50, 
-    CurrentValue = _G.Hub.Config.FarmHeight, 
-    Callback = function(v) 
-        _G.Hub.Config.FarmHeight = tonumber(v)
-    end
+    Name = "Farm Height", 
+    Min = 5, Max = 30, 
+    CurrentValue = 10, 
+    Callback = function(v) _G.Hub.Config.FarmHeight = v end
 })
 
 -- 4. GEGNER-ERKENNUNG
@@ -140,10 +133,9 @@ local function GetNextTarget()
     return target
 end
 
--- 5. LIVE LOGIK (RENDERING & POSITION)
+-- 5. 90° ROTATION & AUTO-NEXT (RENDERSTEPPED)
 RunService.RenderStepped:Connect(function()
     if _G.Hub.Toggles.AutoFarm then
-        -- Zielprüfung
         if not currentTarget or not currentTarget.Parent or (currentTarget.Parent:GetAttribute("Health") or 0) <= 0 then
             currentTarget = GetNextTarget()
         end
@@ -152,10 +144,7 @@ RunService.RenderStepped:Connect(function()
             local char = Player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
-                -- Nutzt den Slider-Wert LIVE für die Position
-                local currentHeight = _G.Hub.Config.FarmHeight or 10
-                local targetPos = currentTarget.Position + Vector3.new(0, currentHeight, 0)
-                
+                local targetPos = currentTarget.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
                 hrp.CFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(-90), 0, 0)
                 hrp.Velocity = Vector3.new(0, 0, 0)
             end
@@ -173,4 +162,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Script geladen: Error-Backups 404-505 & 408-411 aktiv. Slider fixiert.")
+print("✅ Dungeon Script mit Backup-Namen (Error404-505) geladen!")
