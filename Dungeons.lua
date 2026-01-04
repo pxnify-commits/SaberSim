@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - DYNAMIC HEIGHT)
+-- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - FOLLOW ENEMY)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -252,7 +252,7 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- RENDERSTEPPED LOOP FÜR POSITION (DYNAMISCHE HÖHE)
+-- RENDERSTEPPED LOOP - FOLGT DEM GEGNER
 -- ========================================================
 
 RunService.RenderStepped:Connect(function()
@@ -269,7 +269,7 @@ RunService.RenderStepped:Connect(function()
                 return
             end
             
-            -- DYNAMISCHE Position basierend auf AKTUELLER Höhe
+            -- LIVE Position vom Bot JEDEN FRAME abrufen (folgt Bewegung!)
             local targetPosition = currentTarget.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
             
             -- Rotation NUR einmal setzen beim neuen Ziel
@@ -278,7 +278,7 @@ RunService.RenderStepped:Connect(function()
                 rotationSet = true
                 print("🔄 Rotation auf 90° gesetzt")
             else
-                -- Danach nur Position halten (Rotation bleibt)
+                -- Position FOLGT dem Bot, Rotation bleibt
                 local currentRotation = myHRP.CFrame - myHRP.CFrame.Position
                 myHRP.CFrame = CFrame.new(targetPosition) * currentRotation
             end
@@ -375,7 +375,7 @@ task.spawn(function()
                 
                 -- Prüfe ob aktuelles Ziel noch lebt
                 local targetStillAlive = false
-                if currentTarget then
+                if currentTarget and currentTarget.Parent then
                     local hp = currentTarget.Parent:GetAttribute("Health")
                     if hp and hp > 0 then
                         targetStillAlive = true
@@ -514,4 +514,4 @@ task.spawn(function()
 end)
 
 print("✅ Dungeon Autofarm Script VOLLSTÄNDIG geladen!")
-print("📦 Features: Lobby, Farming, Upgrades, Rewards (Chests, Eggs)")
+print("📦 Features: Lobby, Farming (folgt Gegner!), Upgrades, Rewards")
