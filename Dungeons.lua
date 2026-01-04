@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 MENYANETY HUB | ULTIMATE DUNGEON MODULE
+-- 🏰 DUNGEON MODULE (ORIGINAL UI + IMPROVED SCANNER)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -7,14 +7,15 @@ local RS = game:GetService("ReplicatedStorage")
 local WS = game:GetService("Workspace")
 local Player = game.Players.LocalPlayer
 
--- 1. KONFIGURATIONEN & SPEICHER
+-- Konfigurationen
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 _G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10
 
+-- Speicher für Auswahl
 local selDungeon, selDiff, selPrivacy = "Space", "Easy", "Public"
-local selUpgrade = "DungeonHealth"
 local dungeonNames, diffNames, diffMap = {"Space"}, {"Easy"}, {["Easy"] = 1}
+local selUpgrade = "DungeonHealth"
 
 local upgradeMap = {
     ["Health"] = "DungeonHealth", ["Damage"] = "DungeonDamage",
@@ -23,7 +24,7 @@ local upgradeMap = {
     ["Crowns Boost"] = "DungeonCrowns"
 }
 
--- 2. DYNAMISCHE DATEN LADEN (Dungeon Info)
+-- 1. DYNAMISCHE DATEN (Dungeon Info)
 local function RefreshData()
     local success, Info = pcall(function() return require(RS.Modules:WaitForChild("DungeonInfo", 5)) end)
     if success and Info and Info.Dungeons and Info.Difficulties then
@@ -39,34 +40,7 @@ local function RefreshData()
 end
 RefreshData()
 
--- 3. UI SEKTION: MAIN (Autofarm & Kampf)
-Tab:CreateSection("Main")
-
-Tab:CreateToggle({
-    Name = "Auto Farm 💀 Dungeon 💀",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.AutoFarm = v end
-})
-
-Tab:CreateToggle({
-    Name = "Auto 🗡️ Swing 🗡️",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.AutoSwing = v end
-})
-
-Tab:CreateToggle({
-    Name = "Auto Collect Chest",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.AutoCollectChest = v end
-})
-
-Tab:CreateSlider({
-    Name = "Farm Height (Höhe)",
-    Min = 5, Max = 50, CurrentValue = 10,
-    Callback = function(v) _G.Hub.Config.FarmHeight = v end
-})
-
--- 4. UI SEKTION: LOBBY MANAGEMENT
+-- 2. UI: MANAGEMENT (Wie davor)
 Tab:CreateSection("🏰 Dungeon Management")
 
 Tab:CreateDropdown({
@@ -83,10 +57,17 @@ Tab:CreateDropdown({
     Callback = function(opt) selDiff = (type(opt) == "table" and opt[1]) or tostring(opt) end
 })
 
+Tab:CreateDropdown({
+    Name = "Privacy",
+    Options = {"Public", "Friends"},
+    CurrentOption = "Public",
+    Callback = function(opt) selPrivacy = (type(opt) == "table" and opt[1]) or tostring(opt) end
+})
+
 Tab:CreateButton({
     Name = "🔨 Create Lobby",
     Callback = function()
-        RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", "Public", tostring(selDungeon), tonumber(diffMap[selDiff]) or 1)
+        RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", tostring(selPrivacy), tostring(selDungeon), tonumber(diffMap[selDiff]) or 1)
     end
 })
 
@@ -97,7 +78,24 @@ Tab:CreateButton({
     end
 })
 
--- 5. UI SEKTION: UPGRADES & INCUBATOR
+-- 3. UI: AUTOFARM EINSTELLUNGEN
+Tab:CreateSection("⚔️ Dungeon Autofarm")
+
+Tab:CreateToggle({
+    Name = "Enable Autofarm",
+    CurrentValue = false,
+    Callback = function(v) _G.Hub.Toggles.AutoFarm = v end
+})
+
+Tab:CreateSlider({
+    Name = "Farm Height",
+    Min = 5,
+    Max = 30,
+    CurrentValue = 10,
+    Callback = function(v) _G.Hub.Config.FarmHeight = v end
+})
+
+-- 4. UI: UPGRADES & INCUBATOR
 Tab:CreateSection("🆙 Upgrades & Incubator")
 
 Tab:CreateDropdown({
@@ -122,29 +120,30 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoIncubator = v end
 })
 
--- 6. HAUPT-LOGIK LOOP (SCANNER & POSITIONIERUNG)
+-- 5. HAUPT-LOGIK LOOP
 task.spawn(function()
     while true do
         task.wait(0.05)
         
-        -- A. PRÄZISIONS-AUTOFARM LOGIK (Shuffelt durch Spawner)
         if _G.Hub.Toggles.AutoFarm then
             pcall(function()
                 local storage = WS:FindFirstChild("DungeonStorage")
                 if storage then
+                    -- Findet den dynamischen Ordner
                     local currentDungeon = storage:FindFirstChildOfClass("Folder") or storage:GetChildren()[1]
                     if currentDungeon and currentDungeon:FindFirstChild("Important") then
                         local important = currentDungeon.Important
                         local spawnerTypes = {"Green", "Blue", "Purple", "Red", "PurpleBoss"}
                         local targetBot = nil
 
-                        -- Scannt alle Spawner nach einem Bot mit Health > 0
+                        -- Scannt alle Spawner in der Reihenfolge
                         for _, color in pairs(spawnerTypes) do
                             if targetBot then break end
                             local sName = color .. "EnemySpawner"
                             for _, obj in pairs(important:GetChildren()) do
                                 if obj.Name == sName then
                                     for _, bot in pairs(obj:GetChildren()) do
+                                        -- Health-Check via Attribute
                                         if bot:GetAttribute("Health") and bot:GetAttribute("Health") > 0 and bot:FindFirstChild("HumanoidRootPart") then
                                             targetBot = bot
                                             break
@@ -155,12 +154,11 @@ task.spawn(function()
                             end
                         end
 
-                        -- Teleportiert 90° über den gefundenen Bot
+                        -- Teleport-Logik (90 Grad Winkel)
                         if targetBot and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
                             local hrp = targetBot.HumanoidRootPart
                             local rotation = CFrame.Angles(math.rad(-90), 0, 0)
                             
-                            -- Klebt am Bot bis er stirbt
                             repeat 
                                 task.wait() 
                                 if hrp and _G.Hub.Toggles.AutoFarm then
@@ -173,12 +171,7 @@ task.spawn(function()
             end)
         end
 
-        -- B. AUTO SWING LOGIK
-        if _G.Hub.Toggles.AutoSwing then
-            RS.Events.UIAction:FireServer("Swing") 
-        end
-
-        -- C. UPGRADES & INCUBATOR (Jede Sekunde)
+        -- Upgrades & Incubator Check
         if tick() % 1 <= 0.1 then
             if _G.Hub.Toggles.AutoDungeonUpgrade and selUpgrade then
                 for i = 1, 10 do RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade, i) end
