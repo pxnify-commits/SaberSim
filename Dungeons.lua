@@ -15,6 +15,7 @@ _G.Hub.Config.SelectedMap = _G.Hub.Config.SelectedMap or "Castle"
 
 local selUpgrade = "DungeonHealth"
 local debugTimer = 0
+local currentTarget = nil -- Speichert das aktuelle Ziel
 
 -- ========================================================
 -- UI ELEMENTS - LOBBY SECTION
@@ -95,6 +96,7 @@ Tab:CreateToggle({
     CurrentValue = false, 
     Callback = function(v) 
         _G.Hub.Toggles.AutoFarm = v 
+        currentTarget = nil -- Reset target beim Toggle
         print("----------------------------------")
         print("🔘 Autofarm Toggle wurde geklickt: " .. tostring(v))
     end
@@ -225,14 +227,14 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- MAIN AUTOFARM LOOP WITH DIAGNOSTICS (DEINE ORIGINAL LOGIK)
+-- MAIN AUTOFARM LOOP WITH DIAGNOSTICS (MIT SCHWEBELOGIK)
 -- ========================================================
 
 task.spawn(function()
     print("🚀 Diagnose-System gestartet. Warte auf Toggle...")
     
     while true do
-        task.wait(0.1) -- Langsamerer Loop für saubere Console-Logs
+        task.wait(0.5) -- Etwas langsamer für bessere Kontrolle
         
         if _G.Hub.Toggles.AutoFarm then
             local char = Player.Character
@@ -297,10 +299,7 @@ task.spawn(function()
                             
                             if not enemyFound then
                                 warn("⚠️ Info: Keine lebenden Gegner in den Spawnern gefunden.")
-                            else
-                                -- Schritt 4: Teleport Versuch
-                                print("⚡ Teleportiere zu Position: " .. tostring(targetPart.Position))
-                                myHRP.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
+                                currentTarget = nil -- Kein Ziel mehr vorhanden
                             end
                         end
                     end
@@ -309,28 +308,69 @@ task.spawn(function()
                 debugTimer = tick()
             end
             
-            -- Ausführung des Teleports (ohne Print-Verzögerung für flüssiges Farmen)
+            -- FARMING LOGIK: Nur teleportieren wenn neues Ziel oder Ziel tot
             pcall(function()
-                if dId and myHRP then
-                    local target = nil
-                    for _, sName in pairs({"GreenEnemySpawner", "BlueEnemySpawner", "RedEnemySpawner", "PurpleEnemySpawner", "PurpleBossEnemySpawner"}) do
-                        local folder = WS.DungeonStorage[dId].Important:FindFirstChild(sName)
-                        if folder then
-                            for _, b in pairs(folder:GetChildren()) do
-                                if b:GetAttribute("Health") and b:GetAttribute("Health") > 0 then
-                                    target = b.PrimaryPart or b:FindFirstChild("HumanoidRootPart")
-                                    if target then break end
+                if not (dId and myHRP) then return end
+                
+                -- Prüfe ob aktuelles Ziel noch lebt
+                local targetStillAlive = false
+                if currentTarget then
+                    local hp = currentTarget.Parent:GetAttribute("Health")
+                    if hp and hp > 0 then
+                        targetStillAlive = true
+                    end
+                end
+                
+                -- Wenn Ziel tot oder keins vorhanden -> Suche neues
+                if not targetStillAlive then
+                    currentTarget = nil
+                    
+                    local ds = WS:FindFirstChild("DungeonStorage")
+                    if not ds then return end
+                    
+                    local dFolder = ds:FindFirstChild(tostring(dId))
+                    if not dFolder then return end
+                    
+                    local important = dFolder:FindFirstChild("Important")
+                    if not important then return end
+                    
+                    local spawners = {"GreenEnemySpawner", "BlueEnemySpawner", "RedEnemySpawner", "PurpleEnemySpawner", "PurpleBossEnemySpawner"}
+                    
+                    for _, sName in pairs(spawners) do
+                        local sFolder = important:FindFirstChild(sName)
+                        if sFolder then
+                            for _, bot in pairs(sFolder:GetChildren()) do
+                                local hp = bot:GetAttribute("Health")
+                                if bot:IsA("Model") and hp and hp > 0 then
+                                    local targetPart = bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
+                                    if targetPart then
+                                        currentTarget = targetPart
+                                        print("🎯 Neues Ziel erfasst: " .. bot.Name)
+                                        
+                                        -- TELEPORT NUR EINMAL ZUM NEUEN ZIEL
+                                        myHRP.Velocity = Vector3.new(0, 0, 0)
+                                        myHRP.CFrame = CFrame.new(
+                                            targetPart.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
+                                        ) * CFrame.Angles(math.rad(-90), 0, 0)
+                                        
+                                        print("⚡ Teleportiert zu: " .. tostring(targetPart.Position))
+                                        break
+                                    end
                                 end
                             end
                         end
-                        if target then break end
-                    end
-                    if target then
-                        myHRP.Velocity = Vector3.new(0,0,0)
-                        myHRP.CFrame = CFrame.new(target.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
+                        if currentTarget then break end
                     end
                 end
+                
+                -- Halte Position über dem Ziel (ohne CFrame Reset, nur Velocity auf 0)
+                if currentTarget and myHRP then
+                    myHRP.Velocity = Vector3.new(0, 0, 0)
+                    myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                end
             end)
+        else
+            currentTarget = nil -- Reset wenn Toggle aus
         end
     end
 end)
@@ -397,4 +437,4 @@ task.spawn(function()
 end)
 
 print("✅ Dungeon Autofarm Script VOLLSTÄNDIG geladen!")
-print("📦 Features: Lobby Creation, Autofarm (Original Logik), Auto Swing, Auto Upgrade, Auto Collect")
+print("📦 Features: Lobby Creation, Autofarm (Schwebelogik), Auto Swing, Auto Upgrade, Auto Collect")
