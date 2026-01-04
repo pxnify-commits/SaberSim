@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION)
+-- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - FIXED ROTATION)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -15,7 +15,7 @@ _G.Hub.Config.SelectedMap = _G.Hub.Config.SelectedMap or "Castle"
 
 local selUpgrade = "DungeonHealth"
 local debugTimer = 0
-local currentTarget = nil -- Speichert das aktuelle Ziel
+local currentTarget = nil
 
 -- ========================================================
 -- UI ELEMENTS - LOBBY SECTION
@@ -96,7 +96,7 @@ Tab:CreateToggle({
     CurrentValue = false, 
     Callback = function(v) 
         _G.Hub.Toggles.AutoFarm = v 
-        currentTarget = nil -- Reset target beim Toggle
+        currentTarget = nil
         print("----------------------------------")
         print("🔘 Autofarm Toggle wurde geklickt: " .. tostring(v))
     end
@@ -205,7 +205,6 @@ task.spawn(function()
                 local dId = Player:GetAttribute("DungeonId")
                 local inLobby = Player:GetAttribute("InDungeonLobby")
                 
-                -- Wenn nicht im Dungeon und nicht in Lobby -> Erstelle Lobby
                 if not dId and not inLobby then
                     print("🔄 Erstelle automatisch Lobby...")
                     RS.Events.CreateDungeonLobby:FireServer(
@@ -215,7 +214,6 @@ task.spawn(function()
                     task.wait(1)
                 end
                 
-                -- Wenn in Lobby -> Starte Dungeon
                 if inLobby and not dId then
                     print("▶️ Starte Dungeon automatisch...")
                     RS.Events.StartDungeon:FireServer()
@@ -227,23 +225,22 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- MAIN AUTOFARM LOOP WITH DIAGNOSTICS (MIT SCHWEBELOGIK)
+-- MAIN AUTOFARM LOOP (OHNE ROTATION BUG)
 -- ========================================================
 
 task.spawn(function()
     print("🚀 Diagnose-System gestartet. Warte auf Toggle...")
     
     while true do
-        task.wait(0.5) -- Etwas langsamer für bessere Kontrolle
+        task.wait(0.5)
         
         if _G.Hub.Toggles.AutoFarm then
             local char = Player.Character
             local myHRP = char and char:FindFirstChild("HumanoidRootPart")
             
-            -- Schritt 1: DungeonId prüfen
             local dId = Player:GetAttribute("DungeonId")
             
-            if tick() - debugTimer > 3 then -- Feedback alle 3 Sekunden
+            if tick() - debugTimer > 3 then
                 print("--- [DIAGNOSE START] ---")
                 
                 if not char then warn("❌ Fehler: Charakter nicht gefunden!") 
@@ -256,7 +253,6 @@ task.spawn(function()
                     print("✅ DungeonId gefunden: " .. tostring(dId)) 
                 end
 
-                -- Schritt 2: DungeonStorage & Ordner prüfen
                 local ds = WS:FindFirstChild("DungeonStorage")
                 if not ds then 
                     warn("❌ Fehler: Workspace.DungeonStorage existiert nicht!")
@@ -270,7 +266,6 @@ task.spawn(function()
                     else
                         print("✅ Dungeon-Ordner gefunden.")
                         
-                        -- Schritt 3: Gegner-Suche
                         local important = dFolder:FindFirstChild("Important")
                         if not important then
                             warn("❌ Fehler: Ordner 'Important' fehlt im Dungeon-Ordner!")
@@ -299,7 +294,7 @@ task.spawn(function()
                             
                             if not enemyFound then
                                 warn("⚠️ Info: Keine lebenden Gegner in den Spawnern gefunden.")
-                                currentTarget = nil -- Kein Ziel mehr vorhanden
+                                currentTarget = nil
                             end
                         end
                     end
@@ -308,7 +303,7 @@ task.spawn(function()
                 debugTimer = tick()
             end
             
-            -- FARMING LOGIK: Nur teleportieren wenn neues Ziel oder Ziel tot
+            -- FARMING LOGIK: OHNE ROTATION
             pcall(function()
                 if not (dId and myHRP) then return end
                 
@@ -347,11 +342,11 @@ task.spawn(function()
                                         currentTarget = targetPart
                                         print("🎯 Neues Ziel erfasst: " .. bot.Name)
                                         
-                                        -- TELEPORT NUR EINMAL ZUM NEUEN ZIEL
-                                        myHRP.Velocity = Vector3.new(0, 0, 0)
+                                        -- TELEPORT NUR POSITION (KEINE ROTATION!)
                                         myHRP.CFrame = CFrame.new(
                                             targetPart.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
-                                        ) * CFrame.Angles(math.rad(-90), 0, 0)
+                                        )
+                                        myHRP.Velocity = Vector3.new(0, 0, 0)
                                         
                                         print("⚡ Teleportiert zu: " .. tostring(targetPart.Position))
                                         break
@@ -363,14 +358,14 @@ task.spawn(function()
                     end
                 end
                 
-                -- Halte Position über dem Ziel (ohne CFrame Reset, nur Velocity auf 0)
+                -- Halte Position ohne Rotation zu ändern
                 if currentTarget and myHRP then
                     myHRP.Velocity = Vector3.new(0, 0, 0)
                     myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
                 end
             end)
         else
-            currentTarget = nil -- Reset wenn Toggle aus
+            currentTarget = nil
         end
     end
 end)
@@ -437,4 +432,4 @@ task.spawn(function()
 end)
 
 print("✅ Dungeon Autofarm Script VOLLSTÄNDIG geladen!")
-print("📦 Features: Lobby Creation, Autofarm (Schwebelogik), Auto Swing, Auto Upgrade, Auto Collect")
+print("📦 Features: Lobby Creation, Autofarm (Fixed), Auto Swing, Auto Upgrade, Auto Collect")
