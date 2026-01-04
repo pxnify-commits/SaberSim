@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON MODULE (PROPERTIES-SYNC VERSION)
+-- 🏰 DUNGEON MODULE (COMPLETE & REPAIRED VERSION)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -7,7 +7,7 @@ local RS = game:GetService("ReplicatedStorage")
 local WS = game:GetService("Workspace")
 local Player = game.Players.LocalPlayer
 
--- 1. KONFIGURATIONEN
+-- 1. KONFIGURATIONEN & SPEICHER
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 _G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10
@@ -39,7 +39,7 @@ local function RefreshData()
 end
 RefreshData()
 
--- 3. UI: MANAGEMENT
+-- 3. UI: MANAGEMENT (Lobby & Start)
 Tab:CreateSection("🏰 Dungeon Management")
 
 Tab:CreateDropdown({
@@ -79,13 +79,19 @@ Tab:CreateButton({
     end
 })
 
--- 4. UI: AUTOFARM
+-- 4. UI: AUTOFARM & SWING
 Tab:CreateSection("⚔️ Dungeon Autofarm")
 
 Tab:CreateToggle({
     Name = "Enable Autofarm",
     CurrentValue = false,
     Callback = function(v) _G.Hub.Toggles.AutoFarm = v end
+})
+
+Tab:CreateToggle({
+    Name = "Auto Swing",
+    CurrentValue = false,
+    Callback = function(v) _G.Hub.Toggles.AutoSwing = v end
 })
 
 Tab:CreateSlider({
@@ -119,21 +125,18 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoIncubator = v end
 })
 
--- 6. LOGIK BASIEREND AUF DEINEN BILDERN
+-- 6. HAUPT-LOGIK (TELEPORT & SWING)
 task.spawn(function()
     while true do
-        task.wait(0.01) -- High-Speed Loop
+        task.wait(0.01)
         
+        -- --- AUTOFARM LOGIK ---
         if _G.Hub.Toggles.AutoFarm then
-            local char = Player.Character
-            local myHRP = char and char:FindFirstChild("HumanoidRootPart")
-            
-            if myHRP then
-                pcall(function()
-                    local ds = WS:FindFirstChild("DungeonStorage")
-                    if not ds then return end
-                    
-                    -- Dungeon Ordner Suche
+            pcall(function()
+                local ds = WS:FindFirstChild("DungeonStorage")
+                local char = Player.Character
+                if ds and char and char.PrimaryPart then
+                    -- Findet den aktuellen Dungeon-Ordner
                     local dungeonFolder = nil
                     for _, f in pairs(ds:GetChildren()) do
                         if f:IsA("Folder") and f:FindFirstChild("Important") then
@@ -145,25 +148,19 @@ task.spawn(function()
                     if dungeonFolder then
                         local important = dungeonFolder.Important
                         local targetHRP = nil
-                        
-                        -- Spawner Scan (Reihenfolge nach Fortschritt)
                         local spawnerList = {"GreenEnemySpawner", "BlueEnemySpawner", "RedEnemySpawner", "PurpleEnemySpawner", "PurpleBossEnemySpawner"}
                         
+                        -- Scannt Spawner nach Bots (basierend auf deinen Properties-Bildern)
                         for _, sName in pairs(spawnerList) do
                             if targetHRP then break end
                             for _, spawner in pairs(important:GetChildren()) do
                                 if spawner.Name == sName then
                                     for _, bot in pairs(spawner:GetChildren()) do
-                                        -- PRÜFUNG DER PROPERTIES AUS DEINEM BILD:
-                                        -- 1. Ist es ein Model? 2. Hat es das Health Attribut? 3. Health > 0?
+                                        -- Health Check via Attribute (wie im Bild zu sehen)
                                         local hp = bot:GetAttribute("Health")
                                         if bot:IsA("Model") and hp and hp > 0 then
-                                            -- Nutze PrimaryPart (HumanoidRootPart laut deinem Bild)
-                                            local bHRP = bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
-                                            if bHRP then
-                                                targetHRP = bHRP
-                                                break
-                                            end
+                                            targetHRP = bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
+                                            if targetHRP then break end
                                         end
                                     end
                                 end
@@ -171,27 +168,41 @@ task.spawn(function()
                             end
                         end
                         
-                        -- Teleport ausführen (90 Grad Blickwinkel)
+                        -- Ausführung Teleport (90° Winkel)
                         if targetHRP then
-                            myHRP.Velocity = Vector3.new(0,0,0)
-                            myHRP.CFrame = CFrame.new(targetHRP.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
+                            char.PrimaryPart.Velocity = Vector3.new(0,0,0)
+                            char.PrimaryPart.CFrame = CFrame.new(targetHRP.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
                         end
                     end
-                end)
-            end
+                end
+            end)
+        end
+        
+        -- --- AUTO SWING ---
+        if _G.Hub.Toggles.AutoSwing then
+            RS.Events.UIAction:FireServer("Swing")
         end
     end
 end)
 
--- Upgrade/Incubator Loop
+-- 7. UPGRADES & INCUBATOR LOOP (FIXED INDEX ERROR)
 task.spawn(function()
     while true do
         task.wait(1)
+        
+        -- Auto Upgrade (Fehler behoben: kein ungültiger Index mehr)
         if _G.Hub.Toggles.AutoDungeonUpgrade and selUpgrade then
-            for i = 1, 5 do RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade, i) end
+            pcall(function()
+                -- Ruft das Event nur mit dem Upgrade-Namen auf
+                RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade)
+            end)
         end
+        
+        -- Auto Incubator
         if _G.Hub.Toggles.AutoIncubator then
-            RS.Events.UIAction:FireServer("IncubatorAction", "ClaimAll")
+            pcall(function()
+                RS.Events.UIAction:FireServer("IncubatorAction", "ClaimAll")
+            end)
         end
     end
 end)
