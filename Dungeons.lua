@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON DYNAMIC MASTER (ERROR-BACKUP & SLIDER FIX)
+-- 🏰 DUNGEON MASTER ULTIMATE (FINAL REPAIRED VERSION)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -11,11 +11,21 @@ local RunService = game:GetService("RunService")
 -- Initialisierung der Konfiguration
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
-_G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10 -- Standardwert
+_G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10
 
 local currentTarget = nil
 local dungeonNames, diffNames, diffMap = {}, {}, {}
 local selDungeon, selDiff = "", ""
+local selUpgrade = "DungeonDamage"
+
+-- Mapping für Upgrades (Verhindert "index nil with number")
+local upgradeMapping = {
+    ["Damage ⚔️"] = "DungeonDamage",
+    ["Health ❤️"] = "DungeonHealth",
+    ["Crit Chance 💥"] = "DungeonCritChance",
+    ["Coins 💰"] = "DungeonCoins",
+    ["Egg Slots 🥚"] = "DungeonEggSlots"
+}
 
 -- 1. DYNAMISCHE DATEN MIT EXAKTEN ERROR-BACKUPS
 local function RefreshDungeonData()
@@ -35,7 +45,6 @@ local function RefreshDungeonData()
         end
     else
         warn("⚠️ Modul nicht gefunden! Benutze Error-Backups.")
-        -- DEINE VORGABEN:
         dungeonNames = {"Error404", "Error405", "Error406", "Error407", "Error505"}
         diffNames = {"Error408", "Error409", "Error410", "Error411"}
         diffMap = {
@@ -51,7 +60,7 @@ local function RefreshDungeonData()
 end
 RefreshDungeonData()
 
--- 2. UI SECTION: LOBBY
+-- 2. UI SECTION: LOBBY MANAGEMENT
 Tab:CreateSection("🏛️ Lobby Management")
 
 Tab:CreateDropdown({
@@ -87,7 +96,7 @@ Tab:CreateButton({
     end
 })
 
--- 3. UI SECTION: FARMING (SLIDER FIX)
+-- 3. UI SECTION: FARMING & LIVE SLIDER
 Tab:CreateSection("⚔️ Dungeon Farming")
 
 Tab:CreateToggle({
@@ -105,7 +114,6 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoSwing = v end
 })
 
--- FIX: Slider schreibt jetzt garantiert in die genutzte Variable
 Tab:CreateSlider({
     Name = "Farm Height (Abstand)", 
     Min = 2, 
@@ -116,7 +124,38 @@ Tab:CreateSlider({
     end
 })
 
--- 4. GEGNER-ERKENNUNG
+-- 4. UI SECTION: UPGRADES
+Tab:CreateSection("🆙 Dungeon Upgrades")
+
+Tab:CreateDropdown({
+    Name = "Select Upgrade Type",
+    Options = {"Damage ⚔️", "Health ❤️", "Crit Chance 💥", "Coins 💰", "Egg Slots 🥚"},
+    CurrentOption = "Damage ⚔️",
+    Callback = function(v)
+        local display = (type(v) == "table" and v[1]) or tostring(v)
+        selUpgrade = upgradeMapping[display] or "DungeonDamage"
+    end
+})
+
+Tab:CreateToggle({
+    Name = "Auto Buy Upgrades",
+    CurrentValue = false,
+    Callback = function(v) _G.Hub.Toggles.AutoUpgrade = v end
+})
+
+-- 5. LOGIK: AUTO UPGRADE LOOP
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if _G.Hub.Toggles.AutoUpgrade and selUpgrade then
+            pcall(function()
+                RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade)
+            end)
+        end
+    end
+end)
+
+-- 6. GEGNER-ERKENNUNG (AGGRESSIV)
 local function GetNextTarget()
     local dId = Player:GetAttribute("DungeonId")
     if not dId then return nil end
@@ -140,10 +179,9 @@ local function GetNextTarget()
     return target
 end
 
--- 5. LIVE LOGIK (RENDERING & POSITION)
+-- 7. LIVE LOGIK: 90° ROTATION & POSITION
 RunService.RenderStepped:Connect(function()
     if _G.Hub.Toggles.AutoFarm then
-        -- Zielprüfung
         if not currentTarget or not currentTarget.Parent or (currentTarget.Parent:GetAttribute("Health") or 0) <= 0 then
             currentTarget = GetNextTarget()
         end
@@ -152,18 +190,15 @@ RunService.RenderStepped:Connect(function()
             local char = Player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
-                -- Nutzt den Slider-Wert LIVE für die Position
-                local currentHeight = _G.Hub.Config.FarmHeight or 10
-                local targetPos = currentTarget.Position + Vector3.new(0, currentHeight, 0)
-                
-                hrp.CFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(-90), 0, 0)
+                local h = _G.Hub.Config.FarmHeight or 10
+                hrp.CFrame = CFrame.new(currentTarget.Position + Vector3.new(0, h, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
                 hrp.Velocity = Vector3.new(0, 0, 0)
             end
         end
     end
 end)
 
--- 6. AUTO SWING
+-- 8. AUTO SWING LOOP
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -173,4 +208,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Script geladen: Error-Backups 404-505 & 408-411 aktiv. Slider fixiert.")
+print("✅ Full Dungeon Script geladen. Upgrades fixiert, Slider aktiv, Backups Error404-505/408-411 gesetzt.")
