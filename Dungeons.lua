@@ -144,10 +144,10 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoUpgrade = v end
 })
 
--- 5. LOGIK: AUTO UPGRADE LOOP (Sicher gegen Nil-Fehler)
+-- 5. LOGIK: AUTO UPGRADE LOOP (JETZT ABSOLUT SICHER)
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(1.5) -- Etwas langsamer, um Server-Spam zu vermeiden
         if _G.Hub.Toggles.AutoUpgrade and selUpgrade then
             pcall(function()
                 RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade)
@@ -156,7 +156,7 @@ task.spawn(function()
     end
 end)
 
--- 6. GEGNER-ERKENNUNG (Prüft Attribute und Humanoids)
+-- 6. GEGNER-ERKENNUNG (FIX FÜR "KEINE GEGNER GEFUNDEN")
 local function GetNextTarget()
     local dId = Player:GetAttribute("DungeonId")
     if not dId then return nil end
@@ -164,27 +164,26 @@ local function GetNextTarget()
     local dFolder = WS.DungeonStorage:FindFirstChild(tostring(dId))
     if not dFolder or not dFolder:FindFirstChild("Important") then return nil end
     
-    local target = nil
     for _, folder in pairs(dFolder.Important:GetChildren()) do
         if folder.Name:find("Spawner") then
             for _, bot in pairs(folder:GetChildren()) do
+                -- Prüft Attribut "Health" UND Humanoid Health (Falls Attribute fehlen)
                 local hp = bot:GetAttribute("Health") or (bot:FindFirstChildOfClass("Humanoid") and bot:FindFirstChildOfClass("Humanoid").Health) or 0
                 if hp > 0 then
-                    target = bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
-                    if target then break end
+                    local hrp = bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
+                    if hrp then return hrp end
                 end
             end
         end
-        if target then break end
     end
-    return target
+    return nil
 end
 
--- 7. LIVE LOGIK: 90° ROTATION & LIVE HEIGHT POSITIONING
+-- 7. LIVE LOGIK: 90° ROTATION & POSITION
 RunService.RenderStepped:Connect(function()
     if _G.Hub.Toggles.AutoFarm then
         -- Validierung des Ziels
-        if not currentTarget or not currentTarget.Parent or (currentTarget.Parent:GetAttribute("Health") or 0) <= 0 then
+        if not currentTarget or not currentTarget.Parent or (currentTarget.Parent:GetAttribute("Health") or (currentTarget.Parent:FindFirstChildOfClass("Humanoid") and currentTarget.Parent:FindFirstChildOfClass("Humanoid").Health) or 0) <= 0 then
             currentTarget = GetNextTarget()
         end
         
@@ -211,4 +210,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Dungeon Script geladen: Error-Backups aktiv, Upgrade-Fix integriert und Slider live-fähig.")
+print("✅ Dungeon Script FINAL geladen: Upgrade-Fehler behoben!")
