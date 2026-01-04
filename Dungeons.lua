@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - FIXED HORIZONTAL)
+-- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - FIXED)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -17,10 +17,10 @@ _G.Hub.Config.SelectedMap = _G.Hub.Config.SelectedMap or "Castle"
 local selUpgrade = "DungeonHealth"
 local debugTimer = 0
 local currentTarget = nil
-local targetPosition = nil -- Speichert die Zielposition
+local targetPosition = nil
 
 -- ========================================================
--- UI ELEMENTS - LOBBY SECTION
+-- UI ELEMENTS - LOBBY MANAGEMENT
 -- ========================================================
 
 Tab:CreateSection("🏛️ Lobby Management")
@@ -88,7 +88,7 @@ Tab:CreateToggle({
 })
 
 -- ========================================================
--- UI ELEMENTS - FARMING SECTION
+-- UI ELEMENTS - DUNGEON FARMING
 -- ========================================================
 
 Tab:CreateSection("⚔️ Dungeon Farming")
@@ -101,7 +101,7 @@ Tab:CreateToggle({
         currentTarget = nil
         targetPosition = nil
         print("----------------------------------")
-        print("🔘 Autofarm Toggle wurde geklickt: " .. tostring(v))
+        print("🔘 Autofarm Toggle: " .. tostring(v))
     end
 })
 
@@ -113,6 +113,23 @@ Tab:CreateToggle({
         print("🗡️ Auto Swing: " .. tostring(v))
     end
 })
+
+Tab:CreateSlider({
+    Name = "Farm Height",
+    Range = {5, 30},
+    Increment = 1,
+    CurrentValue = _G.Hub.Config.FarmHeight,
+    Callback = function(v)
+        _G.Hub.Config.FarmHeight = v
+        print("📏 Farm Height: " .. v)
+    end
+})
+
+-- ========================================================
+-- UI ELEMENTS - DUNGEON UPGRADES
+-- ========================================================
+
+Tab:CreateSection("⬆️ Dungeon Upgrades")
 
 Tab:CreateToggle({
     Name = "Auto Upgrade",
@@ -133,22 +150,11 @@ Tab:CreateDropdown({
     end
 })
 
-Tab:CreateSlider({
-    Name = "Farm Height",
-    Range = {5, 30},
-    Increment = 1,
-    CurrentValue = _G.Hub.Config.FarmHeight,
-    Callback = function(v)
-        _G.Hub.Config.FarmHeight = v
-        print("📏 Farm Height: " .. v)
-    end
-})
-
 -- ========================================================
--- UI ELEMENTS - REWARDS SECTION
+-- UI ELEMENTS - DUNGEON REWARDS
 -- ========================================================
 
-Tab:CreateSection("🎁 Rewards")
+Tab:CreateSection("🎁 Dungeon Rewards")
 
 Tab:CreateToggle({
     Name = "Auto Collect Chests",
@@ -156,6 +162,24 @@ Tab:CreateToggle({
     Callback = function(v)
         _G.Hub.Toggles.AutoCollectChests = v
         print("💎 Auto Collect Chests: " .. tostring(v))
+    end
+})
+
+Tab:CreateToggle({
+    Name = "Auto Claim Incubate Eggs",
+    CurrentValue = false,
+    Callback = function(v)
+        _G.Hub.Toggles.AutoClaimEggs = v
+        print("🥚 Auto Claim Incubate Eggs: " .. tostring(v))
+    end
+})
+
+Tab:CreateToggle({
+    Name = "Auto Best Dungeon Egg",
+    CurrentValue = false,
+    Callback = function(v)
+        _G.Hub.Toggles.AutoBestEgg = v
+        print("✨ Auto Best Dungeon Egg: " .. tostring(v))
     end
 })
 
@@ -228,7 +252,7 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- RENDERSTEPPED LOOP FÜR KONSTANTE POSITION/ROTATION
+-- RENDERSTEPPED LOOP FÜR POSITION (OHNE ROTATION!)
 -- ========================================================
 
 RunService.RenderStepped:Connect(function()
@@ -237,8 +261,8 @@ RunService.RenderStepped:Connect(function()
         local myHRP = char and char:FindFirstChild("HumanoidRootPart")
         
         if myHRP then
-            -- Halte Position UND Rotation konstant
-            myHRP.CFrame = CFrame.new(targetPosition) * CFrame.Angles(math.rad(90), 0, 0)
+            -- NUR Position setzen, KEINE Rotation!
+            myHRP.CFrame = CFrame.new(targetPosition)
             myHRP.Velocity = Vector3.new(0, 0, 0)
             myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
         end
@@ -246,7 +270,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ========================================================
--- MAIN AUTOFARM LOOP (NUR FÜR TARGET FINDING)
+-- MAIN AUTOFARM LOOP
 -- ========================================================
 
 task.spawn(function()
@@ -325,7 +349,7 @@ task.spawn(function()
                 debugTimer = tick()
             end
             
-            -- TARGET FINDING (RenderStepped kümmert sich um Position/Rotation)
+            -- TARGET FINDING
             pcall(function()
                 if not (dId and myHRP) then return end
                 
@@ -443,5 +467,33 @@ task.spawn(function()
     end
 end)
 
+-- ========================================================
+-- AUTO CLAIM INCUBATE EGGS LOOP
+-- ========================================================
+
+task.spawn(function()
+    while task.wait(2) do
+        if _G.Hub.Toggles.AutoClaimEggs then
+            pcall(function()
+                RS.Events.ClaimIncubateEgg:FireServer()
+            end)
+        end
+    end
+end)
+
+-- ========================================================
+-- AUTO BEST DUNGEON EGG LOOP
+-- ========================================================
+
+task.spawn(function()
+    while task.wait(1) do
+        if _G.Hub.Toggles.AutoBestEgg then
+            pcall(function()
+                RS.Events.BuyBestDungeonEgg:FireServer()
+            end)
+        end
+    end
+end)
+
 print("✅ Dungeon Autofarm Script VOLLSTÄNDIG geladen!")
-print("📦 Features: Lobby Creation, Autofarm (RenderStepped Fix), Auto Swing, Auto Upgrade, Auto Collect")
+print("📦 Features: Lobby, Farming, Upgrades, Rewards (Chests, Eggs)")
