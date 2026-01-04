@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON DYNAMIC MASTER (LIVE HEIGHT & BACKUP NAMES)
+-- 🏰 DUNGEON DYNAMIC MASTER (ERROR-BACKUP & SLIDER FIX)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -8,16 +8,16 @@ local WS = game:GetService("Workspace")
 local Player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 
+-- Initialisierung der Konfiguration
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
--- Standardhöhe auf 10 setzen
-_G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10
+_G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10 -- Standardwert
 
 local currentTarget = nil
 local dungeonNames, diffNames, diffMap = {}, {}, {}
 local selDungeon, selDiff = "", ""
 
--- 1. DYNAMISCHE DATEN MIT DEINEN BACKUP-NAMEN
+-- 1. DYNAMISCHE DATEN MIT EXAKTEN ERROR-BACKUPS
 local function RefreshDungeonData()
     local success, Info = pcall(function() 
         return require(RS.Modules:WaitForChild("DungeonInfo", 3)) 
@@ -35,13 +35,19 @@ local function RefreshDungeonData()
         end
     else
         warn("⚠️ Modul nicht gefunden! Benutze Error-Backups.")
+        -- DEINE VORGABEN:
         dungeonNames = {"Error404", "Error405", "Error406", "Error407", "Error505"}
         diffNames = {"Error408", "Error409", "Error410", "Error411"}
-        diffMap = {["Error408"] = 1, ["Error409"] = 2, ["Error410"] = 3, ["Error411"] = 4}
+        diffMap = {
+            ["Error408"] = 1, 
+            ["Error409"] = 2, 
+            ["Error410"] = 3, 
+            ["Error411"] = 4
+        }
     end
     
     selDungeon = dungeonNames[1] or "Error404"
-    selDiff = diffNames[1] or "Easy"
+    selDiff = diffNames[1] or "Error408"
 end
 RefreshDungeonData()
 
@@ -81,7 +87,7 @@ Tab:CreateButton({
     end
 })
 
--- 3. UI SECTION: FARMING (JETZT MIT LIVE-SLIDER)
+-- 3. UI SECTION: FARMING (SLIDER FIX)
 Tab:CreateSection("⚔️ Dungeon Farming")
 
 Tab:CreateToggle({
@@ -99,19 +105,18 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoSwing = v end
 })
 
--- Der Slider passt _G.Hub.Config.FarmHeight live an
+-- FIX: Slider schreibt jetzt garantiert in die genutzte Variable
 Tab:CreateSlider({
     Name = "Farm Height (Abstand)", 
     Min = 2, 
-    Max = 40, 
+    Max = 50, 
     CurrentValue = _G.Hub.Config.FarmHeight, 
     Callback = function(v) 
-        _G.Hub.Config.FarmHeight = v 
-        print("📏 Neue Farm-Höhe: " .. v)
+        _G.Hub.Config.FarmHeight = tonumber(v)
     end
 })
 
--- 4. GEGNER-ERKENNUNG (DYNAMIC)
+-- 4. GEGNER-ERKENNUNG
 local function GetNextTarget()
     local dId = Player:GetAttribute("DungeonId")
     if not dId then return nil end
@@ -135,9 +140,10 @@ local function GetNextTarget()
     return target
 end
 
--- 5. LIVE 90° LOGIC (NUTZT DIE SLIDER-VARIABLE)
+-- 5. LIVE LOGIK (RENDERING & POSITION)
 RunService.RenderStepped:Connect(function()
     if _G.Hub.Toggles.AutoFarm then
+        -- Zielprüfung
         if not currentTarget or not currentTarget.Parent or (currentTarget.Parent:GetAttribute("Health") or 0) <= 0 then
             currentTarget = GetNextTarget()
         end
@@ -146,8 +152,10 @@ RunService.RenderStepped:Connect(function()
             local char = Player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
-                -- Hier wird der Wert vom Slider direkt benutzt: _G.Hub.Config.FarmHeight
-                local targetPos = currentTarget.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
+                -- Nutzt den Slider-Wert LIVE für die Position
+                local currentHeight = _G.Hub.Config.FarmHeight or 10
+                local targetPos = currentTarget.Position + Vector3.new(0, currentHeight, 0)
+                
                 hrp.CFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(-90), 0, 0)
                 hrp.Velocity = Vector3.new(0, 0, 0)
             end
@@ -165,4 +173,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Dungeon Script mit Live-Slider und Backup-Namen geladen!")
+print("✅ Script geladen: Error-Backups 404-505 & 408-411 aktiv. Slider fixiert.")
