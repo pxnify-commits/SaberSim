@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 MENYANETY HUB | FULL DUNGEON MODULE (ALL FEATURES)
+-- 🏰 MENYANETY HUB | ULTIMATE DUNGEON MODULE
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -39,7 +39,34 @@ local function RefreshData()
 end
 RefreshData()
 
--- 3. UI SEKTION: LOBBY MANAGEMENT
+-- 3. UI SEKTION: MAIN (Autofarm & Kampf)
+Tab:CreateSection("Main")
+
+Tab:CreateToggle({
+    Name = "Auto Farm 💀 Dungeon 💀",
+    CurrentValue = false,
+    Callback = function(v) _G.Hub.Toggles.AutoFarm = v end
+})
+
+Tab:CreateToggle({
+    Name = "Auto 🗡️ Swing 🗡️",
+    CurrentValue = false,
+    Callback = function(v) _G.Hub.Toggles.AutoSwing = v end
+})
+
+Tab:CreateToggle({
+    Name = "Auto Collect Chest",
+    CurrentValue = false,
+    Callback = function(v) _G.Hub.Toggles.AutoCollectChest = v end
+})
+
+Tab:CreateSlider({
+    Name = "Farm Height (Höhe)",
+    Min = 5, Max = 50, CurrentValue = 10,
+    Callback = function(v) _G.Hub.Config.FarmHeight = v end
+})
+
+-- 4. UI SEKTION: LOBBY MANAGEMENT
 Tab:CreateSection("🏰 Dungeon Management")
 
 Tab:CreateDropdown({
@@ -56,19 +83,10 @@ Tab:CreateDropdown({
     Callback = function(opt) selDiff = (type(opt) == "table" and opt[1]) or tostring(opt) end
 })
 
-Tab:CreateDropdown({
-    Name = "Privacy",
-    Options = {"Public", "Friends"},
-    CurrentOption = "Public",
-    Callback = function(opt) selPrivacy = (type(opt) == "table" and opt[1]) or tostring(opt) end
-})
-
 Tab:CreateButton({
     Name = "🔨 Create Lobby",
     Callback = function()
-        local pArg = tostring(selPrivacy)
-        if pArg:find("table:") then pArg = "Public" end
-        RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", pArg, tostring(selDungeon), tonumber(diffMap[selDiff]) or 1)
+        RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", "Public", tostring(selDungeon), tonumber(diffMap[selDiff]) or 1)
     end
 })
 
@@ -77,21 +95,6 @@ Tab:CreateButton({
     Callback = function()
         RS.Events.UIAction:FireServer("DungeonGroupAction", "Start")
     end
-})
-
--- 4. UI SEKTION: PRÄZISIONS-AUTOFARM
-Tab:CreateSection("⚔️ Dungeon Autofarm")
-
-Tab:CreateToggle({
-    Name = "Enable Autofarm",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.AutoFarm = v end
-})
-
-Tab:CreateSlider({
-    Name = "Farm Height (Höhe)",
-    Min = 5, Max = 30, CurrentValue = 10,
-    Callback = function(v) _G.Hub.Config.FarmHeight = v end
 })
 
 -- 5. UI SEKTION: UPGRADES & INCUBATOR
@@ -119,12 +122,12 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoIncubator = v end
 })
 
--- 6. HAUPT-LOGIK LOOP (FARM, UPGRADES, INCUBATOR)
+-- 6. HAUPT-LOGIK LOOP (SCANNER & POSITIONIERUNG)
 task.spawn(function()
     while true do
         task.wait(0.05)
         
-        -- A. PRÄZISIONS-AUTOFARM LOGIK (Die Positionierung vom Bild)
+        -- A. PRÄZISIONS-AUTOFARM LOGIK (Shuffelt durch Spawner)
         if _G.Hub.Toggles.AutoFarm then
             pcall(function()
                 local storage = WS:FindFirstChild("DungeonStorage")
@@ -132,39 +135,50 @@ task.spawn(function()
                     local currentDungeon = storage:FindFirstChildOfClass("Folder") or storage:GetChildren()[1]
                     if currentDungeon and currentDungeon:FindFirstChild("Important") then
                         local important = currentDungeon.Important
-                        local spawnerNames = {"GreenEnemySpawner", "BlueEnemySpawner", "PurpleEnemySpawner", "RedEnemySpawner", "PurpleBossEnemySpawner"}
-                        
-                        for _, sName in pairs(spawnerNames) do
+                        local spawnerTypes = {"Green", "Blue", "Purple", "Red", "PurpleBoss"}
+                        local targetBot = nil
+
+                        -- Scannt alle Spawner nach einem Bot mit Health > 0
+                        for _, color in pairs(spawnerTypes) do
+                            if targetBot then break end
+                            local sName = color .. "EnemySpawner"
                             for _, obj in pairs(important:GetChildren()) do
                                 if obj.Name == sName then
                                     for _, bot in pairs(obj:GetChildren()) do
-                                        local hp = bot:GetAttribute("Health")
-                                        local hrp = bot:FindFirstChild("HumanoidRootPart")
-                                        
-                                        if hp and hp > 0 and hrp then
-                                            local char = Player.Character
-                                            if char and char:FindFirstChild("HumanoidRootPart") then
-                                                -- 90 Grad Winkel von oben (wie auf dem Screenshot)
-                                                local rotation = CFrame.Angles(math.rad(-90), 0, 0)
-                                                
-                                                repeat 
-                                                    task.wait() 
-                                                    if hrp and char:FindFirstChild("HumanoidRootPart") then
-                                                        char.HumanoidRootPart.CFrame = CFrame.new(hrp.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)) * rotation
-                                                    end
-                                                until not bot.Parent or bot:GetAttribute("Health") <= 0 or not _G.Hub.Toggles.AutoFarm
-                                            end
+                                        if bot:GetAttribute("Health") and bot:GetAttribute("Health") > 0 and bot:FindFirstChild("HumanoidRootPart") then
+                                            targetBot = bot
+                                            break
                                         end
                                     end
                                 end
+                                if targetBot then break end
                             end
+                        end
+
+                        -- Teleportiert 90° über den gefundenen Bot
+                        if targetBot and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+                            local hrp = targetBot.HumanoidRootPart
+                            local rotation = CFrame.Angles(math.rad(-90), 0, 0)
+                            
+                            -- Klebt am Bot bis er stirbt
+                            repeat 
+                                task.wait() 
+                                if hrp and _G.Hub.Toggles.AutoFarm then
+                                    Player.Character.HumanoidRootPart.CFrame = CFrame.new(hrp.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)) * rotation
+                                end
+                            until not targetBot.Parent or targetBot:GetAttribute("Health") <= 0 or not _G.Hub.Toggles.AutoFarm
                         end
                     end
                 end
             end)
         end
 
-        -- B. UPGRADES & INCUBATOR (Jede Sekunde)
+        -- B. AUTO SWING LOGIK
+        if _G.Hub.Toggles.AutoSwing then
+            RS.Events.UIAction:FireServer("Swing") 
+        end
+
+        -- C. UPGRADES & INCUBATOR (Jede Sekunde)
         if tick() % 1 <= 0.1 then
             if _G.Hub.Toggles.AutoDungeonUpgrade and selUpgrade then
                 for i = 1, 10 do RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade, i) end
