@@ -1,5 +1,5 @@
 -- ========================================================
--- 🔥 ELEMENTAL ZONE AUTO FARM ULTIMATE (DEBUG VERSION)
+-- 🔥 ELEMENTAL ZONE AUTO FARM ULTIMATE V2 (FULL DEBUG)
 -- ========================================================
 
 local Tab = _G.Hub["🔥 Elements"]
@@ -12,13 +12,19 @@ local RunService = game:GetService("RunService")
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 _G.Hub.Config.SelectedZones = _G.Hub.Config.SelectedZones or {}
+_G.Hub.Config.FireZones = _G.Hub.Config.FireZones or {}
+_G.Hub.Config.WaterZones = _G.Hub.Config.WaterZones or {}
+_G.Hub.Config.EarthZones = _G.Hub.Config.EarthZones or {}
 _G.Hub.Config.CurrentZoneIndex = _G.Hub.Config.CurrentZoneIndex or 1
 _G.Hub.Config.ElementFarmHeight = _G.Hub.Config.ElementFarmHeight or 3
 _G.Hub.Config.LoadedRegions = _G.Hub.Config.LoadedRegions or {}
+_G.Hub.Toggles.FireAutoFarm = false
+_G.Hub.Toggles.WaterAutoFarm = false
+_G.Hub.Toggles.EarthAutoFarm = false
 
 -- Verhindere doppeltes Laden
 if _G.Hub.ElementModuleLoaded then
-    warn("⚠️ Element Module bereits geladen!")
+    warn("⚠️ Element Module bereits geladen! Reload prevented.")
     return
 end
 _G.Hub.ElementModuleLoaded = true
@@ -122,7 +128,7 @@ local ZONES = {
 }
 
 -- ========================================================
--- 2. REGION LOADING FUNCTIONS
+-- 2. REGION LOADING
 -- ========================================================
 local function loadRegion(regionName)
     if not regionName then return true end
@@ -139,28 +145,22 @@ local function loadRegion(regionName)
     
     local regionFolder = hiddenRegions:FindFirstChild(regionName)
     if not regionFolder then
-        warn("❌ Region nicht in HiddenRegions gefunden: " .. regionName)
+        warn("❌ Region nicht gefunden: " .. regionName)
         return false
     end
     
     local gameplay = WS:FindFirstChild("Gameplay")
-    if not gameplay then
-        warn("❌ Workspace.Gameplay nicht gefunden!")
-        return false
-    end
+    if not gameplay then return false end
     
     local regionsLoaded = gameplay:FindFirstChild("RegionsLoaded")
-    if not regionsLoaded then
-        warn("❌ Workspace.Gameplay.RegionsLoaded nicht gefunden!")
-        return false
-    end
+    if not regionsLoaded then return false end
     
     if regionsLoaded:FindFirstChild(regionName) then
         _G.Hub.Config.LoadedRegions[regionName] = true
         return true
     end
     
-    local success, err = pcall(function()
+    local success = pcall(function()
         local clonedRegion = regionFolder:Clone()
         clonedRegion.Parent = regionsLoaded
         print("✅ Region geladen: " .. regionName)
@@ -169,14 +169,12 @@ local function loadRegion(regionName)
     if success then
         _G.Hub.Config.LoadedRegions[regionName] = true
         return true
-    else
-        warn("❌ Fehler beim Laden: " .. tostring(err))
-        return false
     end
+    return false
 end
 
 -- ========================================================
--- 3. HELPER FUNCTIONS (VERBESSERT MIT DEBUG)
+-- 3. HELPER FUNCTIONS
 -- ========================================================
 local function getZonePath(zone)
     if not zone or not zone.path then return nil end
@@ -189,40 +187,23 @@ local function getZonePath(zone)
     local current = WS
     for _, part in ipairs(parts) do
         current = current:FindFirstChild(part)
-        if not current then 
-            return nil 
-        end
+        if not current then return nil end
     end
     return current
 end
 
 local function hasEnemiesInZone(zonePath)
-    if not zonePath then 
-        warn("⚠️ hasEnemiesInZone: zonePath ist nil!")
-        return false 
-    end
-    
-    local foundEnemies = 0
+    if not zonePath then return false end
     
     for _, entity in pairs(zonePath:GetChildren()) do
-        -- DEBUG: Zeige alle Children
-        print("  Checking: " .. entity.Name .. " (" .. entity.ClassName .. ")")
-        
         if entity:IsA("Model") then
-            local hrp = entity:FindFirstChild("HumanoidRootPart")
             local hum = entity:FindFirstChildOfClass("Humanoid")
-            
-            print("    HRP: " .. tostring(hrp ~= nil) .. " | Humanoid: " .. tostring(hum ~= nil))
-            
-            if hrp and hum and hum.Health > 0 then
-                foundEnemies = foundEnemies + 1
-                print("    ✅ Found alive enemy: " .. entity.Name .. " (HP: " .. hum.Health .. ")")
+            if hum and hum.Health > 0 then
+                return true
             end
         end
     end
-    
-    print("📊 Total enemies found: " .. foundEnemies)
-    return foundEnemies > 0
+    return false
 end
 
 local function teleportEnemiesToPlayer(zonePath)
@@ -238,36 +219,213 @@ local function teleportEnemiesToPlayer(zonePath)
         if entity:IsA("Model") then
             pcall(function()
                 local enemyHRP = entity:FindFirstChild("HumanoidRootPart")
+                local hum = entity:FindFirstChildOfClass("Humanoid")
                 
-                if enemyHRP then
+                if enemyHRP and hum and hum.Health > 0 then
+                    -- Teleport mit Offset
                     local targetCFrame = hrp.CFrame * CFrame.new(0, 0, -h)
                     enemyHRP.CFrame = targetCFrame
+                    
+                    -- Velocity entfernen
                     enemyHRP.Velocity = Vector3.new(0, 0, 0)
                     enemyHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                     
-                    local hum = entity:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        hum:MoveTo(hrp.Position)
+                    -- Anchoring für bessere Kontrolle
+                    if enemyHRP:IsA("BasePart") then
+                        enemyHRP.Anchored = false
                     end
+                    
+                    hum:MoveTo(hrp.Position)
                 end
             end)
         end
     end
 end
 
-local function getNextZone()
-    if #_G.Hub.Config.SelectedZones == 0 then return nil end
-    
-    _G.Hub.Config.CurrentZoneIndex = _G.Hub.Config.CurrentZoneIndex + 1
-    if _G.Hub.Config.CurrentZoneIndex > #_G.Hub.Config.SelectedZones then
-        _G.Hub.Config.CurrentZoneIndex = 1
+-- ========================================================
+-- 4. FARMING LOOPS (GETRENNT PRO ELEMENT)
+-- ========================================================
+
+-- FIRE FARMING LOOP
+task.spawn(function()
+    while task.wait(2) do
+        if not _G.Hub.Toggles.FireAutoFarm then continue end
+        if #_G.Hub.Config.FireZones == 0 then continue end
+        
+        pcall(function()
+            for zoneIndex, zone in ipairs(_G.Hub.Config.FireZones) do
+                if not _G.Hub.Toggles.FireAutoFarm then break end
+                
+                print("\n🔥 [FIRE] Processing: " .. zone.name)
+                
+                -- Load Region
+                if not loadRegion(zone.regionName) then
+                    warn("⚠️ Failed to load region")
+                    continue
+                end
+                
+                task.wait(1)
+                
+                local zonePath = getZonePath(zone)
+                if not zonePath then
+                    warn("⚠️ Zone path not found")
+                    continue
+                end
+                
+                -- Teleport to zone
+                local char = Player.Character
+                if char then
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        hrp.CFrame = zone.coords
+                        print("📍 Teleported to zone")
+                        task.wait(3)
+                    end
+                end
+                
+                -- Farm until cleared
+                local attempts = 0
+                while _G.Hub.Toggles.FireAutoFarm and hasEnemiesInZone(zonePath) and attempts < 60 do
+                    attempts = attempts + 1
+                    task.wait(2)
+                end
+                
+                print("✅ Zone cleared or timeout")
+            end
+        end)
     end
-    
-    return _G.Hub.Config.SelectedZones[_G.Hub.Config.CurrentZoneIndex]
-end
+end)
+
+-- WATER FARMING LOOP
+task.spawn(function()
+    while task.wait(2) do
+        if not _G.Hub.Toggles.WaterAutoFarm then continue end
+        if #_G.Hub.Config.WaterZones == 0 then continue end
+        
+        pcall(function()
+            for zoneIndex, zone in ipairs(_G.Hub.Config.WaterZones) do
+                if not _G.Hub.Toggles.WaterAutoFarm then break end
+                
+                print("\n💧 [WATER] Processing: " .. zone.name)
+                
+                if not loadRegion(zone.regionName) then continue end
+                task.wait(1)
+                
+                local zonePath = getZonePath(zone)
+                if not zonePath then continue end
+                
+                local char = Player.Character
+                if char then
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        hrp.CFrame = zone.coords
+                        task.wait(3)
+                    end
+                end
+                
+                local attempts = 0
+                while _G.Hub.Toggles.WaterAutoFarm and hasEnemiesInZone(zonePath) and attempts < 60 do
+                    attempts = attempts + 1
+                    task.wait(2)
+                end
+                
+                print("✅ Zone cleared")
+            end
+        end)
+    end
+end)
+
+-- EARTH FARMING LOOP
+task.spawn(function()
+    while task.wait(2) do
+        if not _G.Hub.Toggles.EarthAutoFarm then continue end
+        if #_G.Hub.Config.EarthZones == 0 then continue end
+        
+        pcall(function()
+            for zoneIndex, zone in ipairs(_G.Hub.Config.EarthZones) do
+                if not _G.Hub.Toggles.EarthAutoFarm then break end
+                
+                print("\n🌍 [EARTH] Processing: " .. zone.name)
+                
+                if not loadRegion(zone.regionName) then continue end
+                task.wait(1)
+                
+                local zonePath = getZonePath(zone)
+                if not zonePath then continue end
+                
+                local char = Player.Character
+                if char then
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        hrp.CFrame = zone.coords
+                        task.wait(3)
+                    end
+                end
+                
+                local attempts = 0
+                while _G.Hub.Toggles.EarthAutoFarm and hasEnemiesInZone(zonePath) and attempts < 60 do
+                    attempts = attempts + 1
+                    task.wait(2)
+                end
+                
+                print("✅ Zone cleared")
+            end
+        end)
+    end
+end)
 
 -- ========================================================
--- 4. UI SECTION: FIRE ZONES
+-- 5. UNIVERSAL TELEPORT LOOP
+-- ========================================================
+RunService.RenderStepped:Connect(function()
+    pcall(function()
+        -- Fire Zones
+        if _G.Hub.Toggles.FireAutoFarm then
+            for _, zone in ipairs(_G.Hub.Config.FireZones) do
+                local zonePath = getZonePath(zone)
+                if zonePath then
+                    teleportEnemiesToPlayer(zonePath)
+                end
+            end
+        end
+        
+        -- Water Zones
+        if _G.Hub.Toggles.WaterAutoFarm then
+            for _, zone in ipairs(_G.Hub.Config.WaterZones) do
+                local zonePath = getZonePath(zone)
+                if zonePath then
+                    teleportEnemiesToPlayer(zonePath)
+                end
+            end
+        end
+        
+        -- Earth Zones
+        if _G.Hub.Toggles.EarthAutoFarm then
+            for _, zone in ipairs(_G.Hub.Config.EarthZones) do
+                local zonePath = getZonePath(zone)
+                if zonePath then
+                    teleportEnemiesToPlayer(zonePath)
+                end
+            end
+        end
+    end)
+end)
+
+-- ========================================================
+-- 6. AUTO SWING LOOP
+-- ========================================================
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.Hub.Toggles.ElementAutoSwing then
+            pcall(function()
+                RS.Events.UIAction:FireServer("Swing")
+            end)
+        end
+    end
+end)
+
+-- ========================================================
+-- 7. UI: FIRE ZONES
 -- ========================================================
 Tab:CreateSection("🔥 Fire Zones")
 
@@ -276,30 +434,69 @@ for _, zone in ipairs(ZONES.FIRE) do
         Name = zone.displayName,
         CurrentValue = false,
         Callback = function(Value)
-            if Value then
-                if loadRegion(zone.regionName) then
-                    table.insert(_G.Hub.Config.SelectedZones, zone)
-                    print("✅ Added: " .. zone.name)
+            pcall(function()
+                if Value then
+                    -- Prüfe ob schon vorhanden
+                    local exists = false
+                    for _, z in ipairs(_G.Hub.Config.FireZones) do
+                        if z.name == zone.name then
+                            exists = true
+                            break
+                        end
+                    end
+                    
+                    if not exists then
+                        if loadRegion(zone.regionName) then
+                            table.insert(_G.Hub.Config.FireZones, zone)
+                            print("✅ [FIRE] Added: " .. zone.name)
+                        end
+                    end
                 else
-                    warn("❌ Failed to load region for: " .. zone.name)
-                end
-            else
-                for i, z in ipairs(_G.Hub.Config.SelectedZones) do
-                    if z.name == zone.name then
-                        table.remove(_G.Hub.Config.SelectedZones, i)
-                        print("❌ Removed: " .. zone.name)
-                        break
+                    for i, z in ipairs(_G.Hub.Config.FireZones) do
+                        if z.name == zone.name then
+                            table.remove(_G.Hub.Config.FireZones, i)
+                            print("❌ [FIRE] Removed: " .. zone.name)
+                            break
+                        end
                     end
                 end
-            end
+            end)
         end
     })
 end
 
+Tab:CreateToggle({
+    Name = "🚀 Start Fire Auto Farm",
+    CurrentValue = false,
+    Callback = function(v)
+        _G.Hub.Toggles.FireAutoFarm = v
+        print(v and "✅ Fire Auto Farm: ON" or "⏸️ Fire Auto Farm: OFF")
+    end
+})
+
+Tab:CreateButton({
+    Name = "🔍 Debug Fire Zones",
+    Callback = function()
+        print("\n" .. string.rep("=", 50))
+        print("🔥 FIRE ZONES DEBUG")
+        print(string.rep("=", 50))
+        print("Selected Zones: " .. #_G.Hub.Config.FireZones)
+        for i, zone in ipairs(_G.Hub.Config.FireZones) do
+            print("  " .. i .. ". " .. zone.name)
+            local zonePath = getZonePath(zone)
+            print("     Path Valid: " .. tostring(zonePath ~= nil))
+            if zonePath then
+                print("     Enemies: " .. tostring(hasEnemiesInZone(zonePath)))
+            end
+        end
+        print(string.rep("=", 50))
+    end
+})
+
 Tab:CreateLabel("🔥 Fire Farm [BETA]")
 
 -- ========================================================
--- 5. UI SECTION: WATER ZONES
+-- 8. UI: WATER ZONES
 -- ========================================================
 Tab:CreateSection("💧 Water Zones")
 
@@ -308,28 +505,66 @@ for _, zone in ipairs(ZONES.WATER) do
         Name = zone.displayName,
         CurrentValue = false,
         Callback = function(Value)
-            if Value then
-                if loadRegion(zone.regionName) then
-                    table.insert(_G.Hub.Config.SelectedZones, zone)
-                    print("✅ Added: " .. zone.name)
+            pcall(function()
+                if Value then
+                    local exists = false
+                    for _, z in ipairs(_G.Hub.Config.WaterZones) do
+                        if z.name == zone.name then
+                            exists = true
+                            break
+                        end
+                    end
+                    
+                    if not exists then
+                        if loadRegion(zone.regionName) then
+                            table.insert(_G.Hub.Config.WaterZones, zone)
+                            print("✅ [WATER] Added: " .. zone.name)
+                        end
+                    end
                 else
-                    warn("❌ Failed to load region for: " .. zone.name)
-                end
-            else
-                for i, z in ipairs(_G.Hub.Config.SelectedZones) do
-                    if z.name == zone.name then
-                        table.remove(_G.Hub.Config.SelectedZones, i)
-                        print("❌ Removed: " .. zone.name)
-                        break
+                    for i, z in ipairs(_G.Hub.Config.WaterZones) do
+                        if z.name == zone.name then
+                            table.remove(_G.Hub.Config.WaterZones, i)
+                            print("❌ [WATER] Removed: " .. zone.name)
+                            break
+                        end
                     end
                 end
-            end
+            end)
         end
     })
 end
 
+Tab:CreateToggle({
+    Name = "🚀 Start Water Auto Farm",
+    CurrentValue = false,
+    Callback = function(v)
+        _G.Hub.Toggles.WaterAutoFarm = v
+        print(v and "✅ Water Auto Farm: ON" or "⏸️ Water Auto Farm: OFF")
+    end
+})
+
+Tab:CreateButton({
+    Name = "🔍 Debug Water Zones",
+    Callback = function()
+        print("\n" .. string.rep("=", 50))
+        print("💧 WATER ZONES DEBUG")
+        print(string.rep("=", 50))
+        print("Selected Zones: " .. #_G.Hub.Config.WaterZones)
+        for i, zone in ipairs(_G.Hub.Config.WaterZones) do
+            print("  " .. i .. ". " .. zone.name)
+            local zonePath = getZonePath(zone)
+            print("     Path Valid: " .. tostring(zonePath ~= nil))
+            if zonePath then
+                print("     Enemies: " .. tostring(hasEnemiesInZone(zonePath)))
+            end
+        end
+        print(string.rep("=", 50))
+    end
+})
+
 -- ========================================================
--- 6. UI SECTION: EARTH ZONES
+-- 9. UI: EARTH ZONES
 -- ========================================================
 Tab:CreateSection("🌍 Earth Zones")
 
@@ -338,49 +573,68 @@ for _, zone in ipairs(ZONES.EARTH) do
         Name = zone.displayName,
         CurrentValue = false,
         Callback = function(Value)
-            if Value then
-                if loadRegion(zone.regionName) then
-                    table.insert(_G.Hub.Config.SelectedZones, zone)
-                    print("✅ Added: " .. zone.name)
+            pcall(function()
+                if Value then
+                    local exists = false
+                    for _, z in ipairs(_G.Hub.Config.EarthZones) do
+                        if z.name == zone.name then
+                            exists = true
+                            break
+                        end
+                    end
+                    
+                    if not exists then
+                        if loadRegion(zone.regionName) then
+                            table.insert(_G.Hub.Config.EarthZones, zone)
+                            print("✅ [EARTH] Added: " .. zone.name)
+                        end
+                    end
                 else
-                    warn("❌ Failed to load region for: " .. zone.name)
-                end
-            else
-                for i, z in ipairs(_G.Hub.Config.SelectedZones) do
-                    if z.name == zone.name then
-                        table.remove(_G.Hub.Config.SelectedZones, i)
-                        print("❌ Removed: " .. zone.name)
-                        break
+                    for i, z in ipairs(_G.Hub.Config.EarthZones) do
+                        if z.name == zone.name then
+                            table.remove(_G.Hub.Config.EarthZones, i)
+                            print("❌ [EARTH] Removed: " .. zone.name)
+                            break
+                        end
                     end
                 end
-            end
+            end)
         end
     })
 end
 
--- ========================================================
--- 7. UI SECTION: FARMING CONTROLS
--- ========================================================
-Tab:CreateSection("⚔️ Element Farming")
-
 Tab:CreateToggle({
-    Name = "Enable Auto Farm",
+    Name = "🚀 Start Earth Auto Farm",
     CurrentValue = false,
     Callback = function(v)
-        _G.Hub.Toggles.ElementAutoFarm = v
-        
-        if v then
-            if #_G.Hub.Config.SelectedZones == 0 then
-                warn("⚠️ No zones selected!")
-                _G.Hub.Toggles.ElementAutoFarm = false
-            else
-                print("✅ Auto Farm aktiviert - " .. #_G.Hub.Config.SelectedZones .. " zones")
-            end
-        else
-            print("⏸️ Auto Farm deaktiviert")
-        end
+        _G.Hub.Toggles.EarthAutoFarm = v
+        print(v and "✅ Earth Auto Farm: ON" or "⏸️ Earth Auto Farm: OFF")
     end
 })
+
+Tab:CreateButton({
+    Name = "🔍 Debug Earth Zones",
+    Callback = function()
+        print("\n" .. string.rep("=", 50))
+        print("🌍 EARTH ZONES DEBUG")
+        print(string.rep("=", 50))
+        print("Selected Zones: " .. #_G.Hub.Config.EarthZones)
+        for i, zone in ipairs(_G.Hub.Config.EarthZones) do
+            print("  " .. i .. ". " .. zone.name)
+            local zonePath = getZonePath(zone)
+            print("     Path Valid: " .. tostring(zonePath ~= nil))
+            if zonePath then
+                print("     Enemies: " .. tostring(hasEnemiesInZone(zonePath)))
+            end
+        end
+        print(string.rep("=", 50))
+    end
+})
+
+-- ========================================================
+-- 10. UI: GLOBAL CONTROLS
+-- ========================================================
+Tab:CreateSection("⚔️ Global Settings")
 
 Tab:CreateToggle({
     Name = "Auto Swing",
@@ -395,183 +649,114 @@ pcall(function()
         Name = "Enemy Distance",
         Range = {2, 20},
         Increment = 1,
-        CurrentValue = _G.Hub.Config.ElementFarmHeight or 3,
+        CurrentValue = 3,
         Callback = function(v)
-            _G.Hub.Config.ElementFarmHeight = tonumber(v) or 3
+            _G.Hub.Config.ElementFarmHeight = v
         end
     })
 end)
 
 -- ========================================================
--- 8. UI SECTION: DEBUG TOOLS
+-- 11. UI: DEBUG SECTION
 -- ========================================================
-Tab:CreateSection("🔍 Debug Tools")
+Tab:CreateSection("🔍 Advanced Debug")
 
 Tab:CreateButton({
-    Name = "🔍 Deep Scan Current Zone",
+    Name = "📊 Full System Status",
     Callback = function()
-        local currentZone = _G.Hub.Config.SelectedZones[_G.Hub.Config.CurrentZoneIndex]
-        if not currentZone then 
-            print("❌ No zone selected")
-            return 
+        print("\n" .. string.rep("=", 60))
+        print("📊 ELEMENT FARM SYSTEM STATUS")
+        print(string.rep("=", 60))
+        print("\n🔥 FIRE:")
+        print("   Auto Farm: " .. tostring(_G.Hub.Toggles.FireAutoFarm))
+        print("   Zones Selected: " .. #_G.Hub.Config.FireZones)
+        
+        print("\n💧 WATER:")
+        print("   Auto Farm: " .. tostring(_G.Hub.Toggles.WaterAutoFarm))
+        print("   Zones Selected: " .. #_G.Hub.Config.WaterZones)
+        
+        print("\n🌍 EARTH:")
+        print("   Auto Farm: " .. tostring(_G.Hub.Toggles.EarthAutoFarm))
+        print("   Zones Selected: " .. #_G.Hub.Config.EarthZones)
+        
+        print("\n⚙️ GLOBAL:")
+        print("   Auto Swing: " .. tostring(_G.Hub.Toggles.ElementAutoSwing))
+        print("   Distance: " .. _G.Hub.Config.ElementFarmHeight)
+        
+        print("\n📂 LOADED REGIONS:")
+        for name, _ in pairs(_G.Hub.Config.LoadedRegions) do
+            print("   ✅ " .. name)
         end
-        
-        print("=" .. string.rep("=", 50))
-        print("🔍 DEEP SCAN: " .. currentZone.name)
-        print("=" .. string.rep("=", 50))
-        
-        local zonePath = getZonePath(currentZone)
-        if not zonePath then
-            print("❌ Zone path not found!")
-            print("   Expected path: " .. currentZone.path)
-            return
-        end
-        
-        print("✅ Zone path found: " .. zonePath:GetFullName())
-        print("\n📂 Children in zone:")
-        
-        for _, child in pairs(zonePath:GetChildren()) do
-            print("\n├─ " .. child.Name .. " (" .. child.ClassName .. ")")
-            
-            if child:IsA("Model") then
-                print("│  ├─ Is a Model ✅")
-                
-                -- Suche HumanoidRootPart
-                local hrp = child:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    print("│  ├─ HumanoidRootPart: ✅ FOUND")
-                    print("│  │  └─ Position: " .. tostring(hrp.Position))
-                else
-                    print("│  ├─ HumanoidRootPart: ❌ NOT FOUND")
-                end
-                
-                -- Suche Humanoid
-                local hum = child:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    print("│  ├─ Humanoid: ✅ FOUND")
-                    print("│  │  ├─ Health: " .. hum.Health)
-                    print("│  │  └─ MaxHealth: " .. hum.MaxHealth)
-                else
-                    print("│  ├─ Humanoid: ❌ NOT FOUND")
-                end
-                
-                -- Zeige alle Children des Models
-                print("│  └─ Model Children:")
-                for _, modelChild in pairs(child:GetChildren()) do
-                    print("│     ├─ " .. modelChild.Name .. " (" .. modelChild.ClassName .. ")")
-                end
-            end
-        end
-        
-        print("\n" .. string.rep("=", 50))
+        print("\n" .. string.rep("=", 60))
     end
 })
 
-Tab:CreateSection("⚙️ Quick Actions")
+Tab:CreateButton({
+    Name = "🔍 Deep Scan All Zones",
+    Callback = function()
+        local allZones = {}
+        for _, z in ipairs(_G.Hub.Config.FireZones) do table.insert(allZones, z) end
+        for _, z in ipairs(_G.Hub.Config.WaterZones) do table.insert(allZones, z) end
+        for _, z in ipairs(_G.Hub.Config.EarthZones) do table.insert(allZones, z) end
+        
+        print("\n" .. string.rep("=", 60))
+        print("🔍 DEEP SCAN - ALL SELECTED ZONES")
+        print(string.rep("=", 60))
+        
+        for _, zone in ipairs(allZones) do
+            print("\n📂 " .. zone.name)
+            local zonePath = getZonePath(zone)
+            
+            if not zonePath then
+                print("   ❌ Path not found!")
+            else
+                print("   ✅ Path: " .. zonePath:GetFullName())
+                print("   📊 Children:")
+                
+                for _, child in pairs(zonePath:GetChildren()) do
+                    if child:IsA("Model") then
+                        local hrp = child:FindFirstChild("HumanoidRootPart")
+                        local hum = child:FindFirstChildOfClass("Humanoid")
+                        
+                        print("      ├─ " .. child.Name)
+                        print("      │  ├─ HRP: " .. tostring(hrp ~= nil))
+                        print("      │  └─ Humanoid: " .. tostring(hum ~= nil))
+                        
+                        if hum then
+                            print("      │     └─ HP: " .. hum.Health .. "/" .. hum.MaxHealth)
+                        end
+                    end
+                end
+            end
+        end
+        print("\n" .. string.rep("=", 60))
+    end
+})
 
 Tab:CreateButton({
     Name = "🗑️ Clear All Selections",
     Callback = function()
-        _G.Hub.Config.SelectedZones = {}
-        _G.Hub.Config.CurrentZoneIndex = 1
-        print("🗑️ Cleared!")
+        _G.Hub.Config.FireZones = {}
+        _G.Hub.Config.WaterZones = {}
+        _G.Hub.Config.EarthZones = {}
+        print("🗑️ All zones cleared!")
     end
 })
 
 Tab:CreateButton({
-    Name = "📊 Show Selected Zones",
+    Name = "🔄 Restart All Farms",
     Callback = function()
-        if #_G.Hub.Config.SelectedZones == 0 then
-            print("📊 No zones selected.")
-        else
-            print("📊 Selected (" .. #_G.Hub.Config.SelectedZones .. "):")
-            for i, zone in ipairs(_G.Hub.Config.SelectedZones) do
-                print("  " .. i .. ". " .. zone.name)
-            end
-        end
+        _G.Hub.Toggles.FireAutoFarm = false
+        _G.Hub.Toggles.WaterAutoFarm = false
+        _G.Hub.Toggles.EarthAutoFarm = false
+        task.wait(1)
+        print("🔄 All farms stopped. Please restart manually.")
     end
 })
 
--- ========================================================
--- 9. HAUPT-FARMING LOOP
--- ========================================================
-task.spawn(function()
-    while task.wait(1) do -- Langsamer für besseres Debugging
-        if not _G.Hub.Toggles.ElementAutoFarm then continue end
-        if #_G.Hub.Config.SelectedZones == 0 then continue end
-        
-        pcall(function()
-            local currentZone = _G.Hub.Config.SelectedZones[_G.Hub.Config.CurrentZoneIndex]
-            if not currentZone then return end
-            
-            if not loadRegion(currentZone.regionName) then
-                getNextZone()
-                return
-            end
-            
-            task.wait(1) -- Warte länger nach Region Load
-            
-            local zonePath = getZonePath(currentZone)
-            if not zonePath then 
-                warn("⚠️ Zone path not found!")
-                return 
-            end
-            
-            print("\n🔄 Checking zone: " .. currentZone.name)
-            
-            local char = Player.Character
-            if not char then return end
-            
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if not hrp then return end
-            
-            local distance = (hrp.Position - currentZone.coords.Position).Magnitude
-            
-            if distance > 50 then
-                hrp.CFrame = currentZone.coords
-                print("📍 Teleported to: " .. currentZone.name)
-                task.wait(3) -- Längere Wartezeit nach Teleport
-            end
-            
-            if not hasEnemiesInZone(zonePath) then
-                print("✅ Zone cleared: " .. currentZone.name)
-                getNextZone()
-                task.wait(2)
-            end
-        end)
-    end
-end)
-
--- ========================================================
--- 10. ENEMY TELEPORT LOOP
--- ========================================================
-RunService.RenderStepped:Connect(function()
-    if not _G.Hub.Toggles.ElementAutoFarm then return end
-    if #_G.Hub.Config.SelectedZones == 0 then return end
-    
-    pcall(function()
-        local currentZone = _G.Hub.Config.SelectedZones[_G.Hub.Config.CurrentZoneIndex]
-        if not currentZone then return end
-        
-        local zonePath = getZonePath(currentZone)
-        if zonePath then
-            teleportEnemiesToPlayer(zonePath)
-        end
-    end)
-end)
-
--- ========================================================
--- 11. AUTO SWING LOOP
--- ========================================================
-task.spawn(function()
-    while task.wait(0.1) do
-        if _G.Hub.Toggles.ElementAutoSwing and _G.Hub.Toggles.ElementAutoFarm then
-            pcall(function()
-                RS.Events.UIAction:FireServer("Swing")
-            end)
-        end
-    end
-end)
-
-print("✅ Element Farm ULTIMATE geladen! (DEBUG MODE)")
-print("🔍 Nutze 'Deep Scan Current Zone' um die Struktur zu sehen")
+print("✅ Element Farm ULTIMATE V2 geladen!")
+print("📋 Features:")
+print("   ✅ Separate farming per element")
+print("   ✅ Can toggle zones during farming")
+print("   ✅ Advanced debug tools")
+print("   ✅ Improved enemy teleport")
