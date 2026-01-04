@@ -1,5 +1,5 @@
 -- ========================================================
--- 🔥 ELEMENTAL ZONE AUTO FARM ULTIMATE (WITH REGION LOADING)
+-- 🔥 ELEMENTAL ZONE AUTO FARM ULTIMATE (FIXED)
 -- ========================================================
 
 local Tab = _G.Hub["🔥 Elements"]
@@ -16,6 +16,13 @@ _G.Hub.Config.CurrentZoneIndex = _G.Hub.Config.CurrentZoneIndex or 1
 _G.Hub.Config.ElementFarmHeight = _G.Hub.Config.ElementFarmHeight or 3
 _G.Hub.Config.LoadedRegions = _G.Hub.Config.LoadedRegions or {}
 
+-- Verhindere doppeltes Laden
+if _G.Hub.ElementModuleLoaded then
+    warn("⚠️ Element Module bereits geladen!")
+    return
+end
+_G.Hub.ElementModuleLoaded = true
+
 -- ========================================================
 -- 1. ZONE DEFINITIONEN (MIT REGION NAMES)
 -- ========================================================
@@ -24,28 +31,28 @@ local ZONES = {
         {
             name = "🔥 Normal Fire",
             displayName = "Farm Normal Zone",
-            path = "Gameplay.Map.ElementZone.Fire.Fire.Fire",
+            path = "Gameplay.Map.ElementZone.Fire.Fire",
             coords = CFrame.new(526.115601, 189.898849, 505.875793, -0.434838206, 0, 0.900508583, 0, 1, 0, -0.900508583, 0, -0.434838206),
-            regionName = nil -- Normal Zone ist bereits geladen
+            regionName = nil
         },
         {
             name = "🔥 Advanced Fire",
             displayName = "Farm Advanced Zone",
-            path = "Gameplay.RegionsLoaded.AdvancedFireArea.Important.Fire.Fire",
+            path = "Gameplay.RegionsLoaded.AdvancedFireArea.Important.Fire",
             coords = CFrame.new(-136.174622, 36.0004578, 720.73407, -0.402223319, -1.63293965e-08, 0.915541589, -1.95683096e-08, 1, 9.23886567e-09, -0.915541589, -1.41995145e-08, -0.402223319),
             regionName = "AdvancedFireArea"
         },
         {
             name = "🔥 Master Fire",
             displayName = "Farm Master Zone",
-            path = "Gameplay.RegionsLoaded.MasterFireArea.Important.Fire.Fire",
+            path = "Gameplay.RegionsLoaded.MasterFireArea.Important.Fire",
             coords = CFrame.new(-788.333801, 91.3501282, 743.07373, -0.474422753, 4.84729767e-08, 0.880297124, -2.12631903e-08, 1, -6.65238105e-08, -0.880297124, -5.02783344e-08, -0.474422753),
             regionName = "MasterFireArea"
         },
         {
             name = "🔥 Grandmaster Fire",
             displayName = "Farm Grandmaster Zone",
-            path = "Gameplay.RegionsLoaded.GrandmasterFireArea.Important.Fire.Fire",
+            path = "Gameplay.RegionsLoaded.GrandmasterFireArea.Important.Fire",
             coords = CFrame.new(-1487.91064, 88.7130203, 777.639832, -0.284725279, 1.11041021e-09, 0.958609164, -1.99946903e-09, 1, -1.75223613e-09, -0.958609164, -2.41561504e-09, -0.284725279),
             regionName = "GrandmasterFireArea"
         }
@@ -55,28 +62,28 @@ local ZONES = {
         {
             name = "💧 Normal Water",
             displayName = "Farm Normal Zone",
-            path = "Gameplay.Map.ElementZone.Water.Water.Water",
+            path = "Gameplay.Map.ElementZone.Water.Water",
             coords = CFrame.new(72.1754227, 281.193573, -541.928223, 0.847862661, 1.83689297e-09, 0.530215919, -5.04716935e-10, 1, -2.65733702e-09, -0.530215919, 1.98544781e-09, 0.847862661),
             regionName = nil
         },
         {
             name = "💧 Advanced Water",
             displayName = "Farm Advanced Zone",
-            path = "Gameplay.RegionsLoaded.AdvancedWaterArea.Important.Water.Water",
+            path = "Gameplay.RegionsLoaded.AdvancedWaterArea.Important.Water",
             coords = CFrame.new(-189.005905, 17.935297, -792.825195, 0.847863078, 0, 0.530215263, 0, 1, 0, -0.530215263, 0, 0.847863078),
             regionName = "AdvancedWaterArea"
         },
         {
             name = "💧 Master Water",
             displayName = "Farm Master Zone",
-            path = "Gameplay.RegionsLoaded.MasterWaterArea.Important.Water.Water",
+            path = "Gameplay.RegionsLoaded.MasterWaterArea.Important.Water",
             coords = CFrame.new(-735.40033, 88.951355, -1004.21191, 0.902788103, 6.04197083e-08, 0.430085629, -5.98376033e-08, 1, -1.48785144e-08, -0.430085629, -1.23031469e-08, 0.902788103),
             regionName = "MasterWaterArea"
         },
         {
             name = "💧 Grandmaster Water",
             displayName = "Farm Grandmaster Zone",
-            path = "Gameplay.RegionsLoaded.GrandmasterWaterArea.Important.Water.Water",
+            path = "Gameplay.RegionsLoaded.GrandmasterWaterArea.Important.Water",
             coords = CFrame.new(-784.573364, 148.289093, -1568.74023, -0.434830427, -7.10927353e-08, 0.900512338, 4.79472959e-08, 1, 1.020993e-07, -0.900512338, 8.75730137e-08, -0.434830427),
             regionName = "GrandmasterWaterArea"
         }
@@ -86,28 +93,28 @@ local ZONES = {
         {
             name = "🌍 Normal Earth",
             displayName = "Farm Normal Zone",
-            path = "Gameplay.Map.ElementZone.Earth.Earth.Earth",
+            path = "Gameplay.Map.ElementZone.Earth.Earth",
             coords = CFrame.new(768.616455, 209.452179, -284.68576, 0.847853839, 0, 0.530230045, 0, 1, 0, -0.530230045, 0, 0.847853839),
             regionName = nil
         },
         {
             name = "🌍 Advanced Earth",
             displayName = "Farm Advanced Zone",
-            path = "Gameplay.RegionsLoaded.AdvancedEarthArea.Important.Earth.Earth",
+            path = "Gameplay.RegionsLoaded.AdvancedEarthArea.Important.Earth",
             coords = CFrame.new(1262.17798, -20.3493195, -917.518066, 0.847853839, 0, 0.530230045, 0, 1, 0, -0.530230045, 0, 0.847853839),
             regionName = "AdvancedEarthArea"
         },
         {
             name = "🌍 Master Earth",
             displayName = "Farm Master Zone",
-            path = "Gameplay.RegionsLoaded.MasterEarthArea.Important.Earth.Earth",
+            path = "Gameplay.RegionsLoaded.MasterEarthArea.Important.Earth",
             coords = CFrame.new(1763.40601, 9.96195698, -979.4198, 0.847855389, -2.30705144e-08, 0.530227542, 3.72692632e-08, 1, -1.60844742e-08, -0.530227542, 3.33985e-08, 0.847855389),
             regionName = "MasterEarthArea"
         },
         {
             name = "🌍 Grandmaster Earth",
             displayName = "Farm Grandmaster Zone",
-            path = "Gameplay.RegionsLoaded.GrandmasterEarthArea.Important.Earth.Earth",
+            path = "Gameplay.RegionsLoaded.GrandmasterEarthArea.Important.Earth",
             coords = CFrame.new(1908.66284, 9.44594669, -1461.03455, 0.847594619, 0, 0.530644298, 0, 1, 0, -0.530644298, 0, 0.847594619),
             regionName = "GrandmasterEarthArea"
         }
@@ -115,32 +122,27 @@ local ZONES = {
 }
 
 -- ========================================================
--- 2. REGION LOADING FUNCTIONS (FIXED PATHS)
+-- 2. REGION LOADING FUNCTIONS
 -- ========================================================
 local function loadRegion(regionName)
-    if not regionName then return true end -- Normal Zones brauchen kein Loading
+    if not regionName then return true end
     
-    -- Check ob bereits geladen
     if _G.Hub.Config.LoadedRegions[regionName] then 
-        print("ℹ️ Region bereits geladen: " .. regionName)
         return true 
     end
     
-    -- HiddenRegions aus ReplicatedStorage
     local hiddenRegions = RS:FindFirstChild("HiddenRegions")
     if not hiddenRegions then 
         warn("❌ ReplicatedStorage.HiddenRegions nicht gefunden!")
         return false 
     end
     
-    -- Finde den Region Folder
     local regionFolder = hiddenRegions:FindFirstChild(regionName)
     if not regionFolder then
         warn("❌ Region nicht in HiddenRegions gefunden: " .. regionName)
         return false
     end
     
-    -- Ziel: Workspace.Gameplay.RegionsLoaded
     local gameplay = WS:FindFirstChild("Gameplay")
     if not gameplay then
         warn("❌ Workspace.Gameplay nicht gefunden!")
@@ -153,47 +155,28 @@ local function loadRegion(regionName)
         return false
     end
     
-    -- Check ob bereits existiert in RegionsLoaded
     if regionsLoaded:FindFirstChild(regionName) then
-        print("✅ Region bereits in RegionsLoaded: " .. regionName)
         _G.Hub.Config.LoadedRegions[regionName] = true
         return true
     end
     
-    -- Clone die Region von HiddenRegions nach RegionsLoaded
     local success, err = pcall(function()
         local clonedRegion = regionFolder:Clone()
         clonedRegion.Parent = regionsLoaded
-        print("✅ Region erfolgreich geladen: " .. regionName)
-        print("   Von: ReplicatedStorage.HiddenRegions." .. regionName)
-        print("   Nach: Workspace.Gameplay.RegionsLoaded." .. regionName)
+        print("✅ Region geladen: " .. regionName)
     end)
     
     if success then
         _G.Hub.Config.LoadedRegions[regionName] = true
         return true
     else
-        warn("❌ Fehler beim Laden der Region: " .. tostring(err))
+        warn("❌ Fehler beim Laden: " .. tostring(err))
         return false
     end
 end
 
-local function unloadRegion(regionName)
-    if not regionName then return end
-    
-    local regionsLoaded = WS.Gameplay:FindFirstChild("RegionsLoaded")
-    if not regionsLoaded then return end
-    
-    local region = regionsLoaded:FindFirstChild(regionName)
-    if region then
-        region:Destroy()
-        _G.Hub.Config.LoadedRegions[regionName] = nil
-        print("🗑️ Region entladen: " .. regionName)
-    end
-end
-
 -- ========================================================
--- 3. HELPER FUNCTIONS
+-- 3. HELPER FUNCTIONS (FIXED PATHS)
 -- ========================================================
 local function getZonePath(zone)
     if not zone or not zone.path then return nil end
@@ -207,7 +190,6 @@ local function getZonePath(zone)
     for _, part in ipairs(parts) do
         current = current:FindFirstChild(part)
         if not current then 
-            warn("⚠️ Path Teil nicht gefunden: " .. part)
             return nil 
         end
     end
@@ -217,12 +199,13 @@ end
 local function hasEnemiesInZone(zonePath)
     if not zonePath then return false end
     
+    -- Suche nach "Fire Golem", "Fire Boss", "Water Golem", etc.
     for _, entity in pairs(zonePath:GetChildren()) do
         if entity:IsA("Model") and (entity.Name:find("Golem") or entity.Name:find("Boss")) then
-            local hum = entity:FindFirstChildOfClass("Humanoid") or 
-                       entity:FindFirstChild("Humanoid", true)
+            local hrp = entity:FindFirstChild("HumanoidRootPart")
+            local hum = entity:FindFirstChildOfClass("Humanoid")
             
-            if hum and hum.Health > 0 then
+            if hrp and hum and hum.Health > 0 then
                 return true
             end
         end
@@ -230,6 +213,7 @@ local function hasEnemiesInZone(zonePath)
     return false
 end
 
+-- WICHTIG: Neue Teleport-Funktion die direkt das HumanoidRootPart CFrame setzt
 local function teleportEnemiesToPlayer(zonePath)
     local char = Player.Character
     if not char then return end
@@ -239,19 +223,21 @@ local function teleportEnemiesToPlayer(zonePath)
     
     local h = _G.Hub.Config.ElementFarmHeight or 3
     
+    -- Suche nach "Fire Golem", "Fire Boss", etc.
     for _, entity in pairs(zonePath:GetChildren()) do
         if entity:IsA("Model") and (entity.Name:find("Golem") or entity.Name:find("Boss")) then
             pcall(function()
-                local enemyHRP = entity:FindFirstChild("HumanoidRootPart", true) or
-                                entity:FindFirstChild("Torso", true) or
-                                entity.PrimaryPart
+                -- Gehe ins Model rein und hole das HumanoidRootPart
+                local enemyHRP = entity:FindFirstChild("HumanoidRootPart")
                 
                 if enemyHRP then
+                    -- Setze dauerhaft die Position vor den Spieler
                     local targetCFrame = hrp.CFrame * CFrame.new(0, 0, -h)
                     enemyHRP.CFrame = targetCFrame
                     enemyHRP.Velocity = Vector3.new(0, 0, 0)
                     enemyHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                     
+                    -- Stoppe AI
                     local hum = entity:FindFirstChildOfClass("Humanoid")
                     if hum then
                         hum:MoveTo(hrp.Position)
@@ -378,10 +364,10 @@ Tab:CreateToggle({
         
         if v then
             if #_G.Hub.Config.SelectedZones == 0 then
-                warn("⚠️ No zones selected! Please select at least one zone.")
+                warn("⚠️ No zones selected!")
                 _G.Hub.Toggles.ElementAutoFarm = false
             else
-                print("✅ Auto Farm aktiviert - Farming " .. #_G.Hub.Config.SelectedZones .. " zones")
+                print("✅ Auto Farm aktiviert - " .. #_G.Hub.Config.SelectedZones .. " zones")
             end
         else
             print("⏸️ Auto Farm deaktiviert")
@@ -429,50 +415,18 @@ Tab:CreateButton({
             return
         end
         
-        print("📂 Zone Structure for: " .. currentZone.name)
-        print("📂 Full Path: " .. zonePath:GetFullName())
+        print("📂 Zone Structure: " .. zonePath:GetFullName())
         for _, child in pairs(zonePath:GetChildren()) do
             print("  ├─ " .. child.Name .. " (" .. child.ClassName .. ")")
             
             if child:IsA("Model") then
-                local hrp = child:FindFirstChild("HumanoidRootPart", true)
-                print("    └─ HumanoidRootPart: " .. tostring(hrp and "FOUND ✅" or "NOT FOUND ❌"))
+                local hrp = child:FindFirstChild("HumanoidRootPart")
+                print("    └─ HumanoidRootPart: " .. tostring(hrp and "✅ FOUND" or "❌ NOT FOUND"))
                 
-                local hum = child:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    print("    └─ Humanoid Health: " .. hum.Health)
+                if hrp then
+                    print("    └─ Position: " .. tostring(hrp.Position))
                 end
             end
-        end
-    end
-})
-
-Tab:CreateButton({
-    Name = "📋 Show Loaded Regions",
-    Callback = function()
-        print("📋 Currently Loaded Regions:")
-        local count = 0
-        for regionName, _ in pairs(_G.Hub.Config.LoadedRegions) do
-            count = count + 1
-            print("  ✅ " .. regionName)
-        end
-        if count == 0 then
-            print("  ℹ️ No regions loaded yet")
-        end
-    end
-})
-
-Tab:CreateButton({
-    Name = "🔍 Check HiddenRegions",
-    Callback = function()
-        local hiddenRegions = RS:FindFirstChild("HiddenRegions")
-        if hiddenRegions then
-            print("📂 Available Regions in HiddenRegions:")
-            for _, region in pairs(hiddenRegions:GetChildren()) do
-                print("  📁 " .. region.Name)
-            end
-        else
-            print("❌ HiddenRegions not found!")
         end
     end
 })
@@ -484,7 +438,7 @@ Tab:CreateButton({
     Callback = function()
         _G.Hub.Config.SelectedZones = {}
         _G.Hub.Config.CurrentZoneIndex = 1
-        print("🗑️ All zone selections cleared!")
+        print("🗑️ Cleared!")
     end
 })
 
@@ -494,7 +448,7 @@ Tab:CreateButton({
         if #_G.Hub.Config.SelectedZones == 0 then
             print("📊 No zones selected.")
         else
-            print("📊 Selected Zones (" .. #_G.Hub.Config.SelectedZones .. "):")
+            print("📊 Selected (" .. #_G.Hub.Config.SelectedZones .. "):")
             for i, zone in ipairs(_G.Hub.Config.SelectedZones) do
                 print("  " .. i .. ". " .. zone.name)
             end
@@ -502,21 +456,8 @@ Tab:CreateButton({
     end
 })
 
-Tab:CreateButton({
-    Name = "🔄 Force Zone Refresh",
-    Callback = function()
-        local current = _G.Hub.Config.SelectedZones[_G.Hub.Config.CurrentZoneIndex]
-        if current then
-            print("🔄 Refreshing zone: " .. current.name)
-            getNextZone()
-        else
-            print("⚠️ No active zone")
-        end
-    end
-})
-
 -- ========================================================
--- 9. HAUPT-FARMING LOOP (ZONE ROTATION)
+-- 9. HAUPT-FARMING LOOP
 -- ========================================================
 task.spawn(function()
     while task.wait(0.5) do
@@ -527,22 +468,16 @@ task.spawn(function()
             local currentZone = _G.Hub.Config.SelectedZones[_G.Hub.Config.CurrentZoneIndex]
             if not currentZone then return end
             
-            -- Stelle sicher dass Region geladen ist
             if not loadRegion(currentZone.regionName) then
-                print("⚠️ Failed to load region, skipping...")
                 getNextZone()
                 return
             end
             
-            task.wait(0.5) -- Kleine Wartezeit nach Region Load
+            task.wait(0.5)
             
             local zonePath = getZonePath(currentZone)
-            if not zonePath then
-                warn("⚠️ Zone path not found after loading region!")
-                return
-            end
+            if not zonePath then return end
             
-            -- Teleport zur Zone
             local char = Player.Character
             if not char then return end
             
@@ -557,7 +492,6 @@ task.spawn(function()
                 task.wait(2)
             end
             
-            -- Check ob Zone clear ist
             if not hasEnemiesInZone(zonePath) then
                 print("✅ Zone cleared: " .. currentZone.name)
                 getNextZone()
@@ -568,7 +502,7 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- 10. ENEMY TELEPORT LOOP (RENDERSTEP)
+-- 10. ENEMY TELEPORT LOOP (DAUERHAFT)
 -- ========================================================
 RunService.RenderStepped:Connect(function()
     if not _G.Hub.Toggles.ElementAutoFarm then return end
@@ -599,6 +533,4 @@ task.spawn(function()
 end)
 
 print("✅ Element Farm ULTIMATE geladen!")
-print("📋 Region Loading System aktiv")
-print("   Von: ReplicatedStorage.HiddenRegions")
-print("   Nach: Workspace.Gameplay.RegionsLoaded")
+print("📋 Paths fixed: Golem/Boss direkt angesprochen")
