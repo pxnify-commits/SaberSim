@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - FIXED ROTATION)
+-- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - HORIZONTAL FLOATING)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -16,6 +16,7 @@ _G.Hub.Config.SelectedMap = _G.Hub.Config.SelectedMap or "Castle"
 local selUpgrade = "DungeonHealth"
 local debugTimer = 0
 local currentTarget = nil
+local hasPositioned = false -- Neu: Track ob Position gesetzt wurde
 
 -- ========================================================
 -- UI ELEMENTS - LOBBY SECTION
@@ -97,6 +98,7 @@ Tab:CreateToggle({
     Callback = function(v) 
         _G.Hub.Toggles.AutoFarm = v 
         currentTarget = nil
+        hasPositioned = false
         print("----------------------------------")
         print("🔘 Autofarm Toggle wurde geklickt: " .. tostring(v))
     end
@@ -225,7 +227,7 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- MAIN AUTOFARM LOOP (OHNE ROTATION BUG)
+-- MAIN AUTOFARM LOOP (MIT HORIZONTALER POSITION)
 -- ========================================================
 
 task.spawn(function()
@@ -295,6 +297,7 @@ task.spawn(function()
                             if not enemyFound then
                                 warn("⚠️ Info: Keine lebenden Gegner in den Spawnern gefunden.")
                                 currentTarget = nil
+                                hasPositioned = false
                             end
                         end
                     end
@@ -303,7 +306,7 @@ task.spawn(function()
                 debugTimer = tick()
             end
             
-            -- FARMING LOGIK: OHNE ROTATION
+            -- FARMING LOGIK: MIT HORIZONTALER ROTATION
             pcall(function()
                 if not (dId and myHRP) then return end
                 
@@ -319,6 +322,7 @@ task.spawn(function()
                 -- Wenn Ziel tot oder keins vorhanden -> Suche neues
                 if not targetStillAlive then
                     currentTarget = nil
+                    hasPositioned = false
                     
                     local ds = WS:FindFirstChild("DungeonStorage")
                     if not ds then return end
@@ -341,14 +345,6 @@ task.spawn(function()
                                     if targetPart then
                                         currentTarget = targetPart
                                         print("🎯 Neues Ziel erfasst: " .. bot.Name)
-                                        
-                                        -- TELEPORT NUR POSITION (KEINE ROTATION!)
-                                        myHRP.CFrame = CFrame.new(
-                                            targetPart.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
-                                        )
-                                        myHRP.Velocity = Vector3.new(0, 0, 0)
-                                        
-                                        print("⚡ Teleportiert zu: " .. tostring(targetPart.Position))
                                         break
                                     end
                                 end
@@ -358,14 +354,27 @@ task.spawn(function()
                     end
                 end
                 
-                -- Halte Position ohne Rotation zu ändern
-                if currentTarget and myHRP then
+                -- EINMALIGER TELEPORT + ROTATION WENN NEUES ZIEL
+                if currentTarget and myHRP and not hasPositioned then
+                    -- Position über dem Gegner
+                    local targetPos = currentTarget.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
+                    
+                    -- CFrame MIT ROTATION (horizontal/liegend nach unten schauend)
+                    myHRP.CFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(90), 0, 0)
+                    myHRP.Velocity = Vector3.new(0, 0, 0)
+                    
+                    hasPositioned = true
+                    print("⚡ Teleportiert + Rotation gesetzt zu: " .. tostring(targetPos))
+                    
+                -- NUR Velocity halten (KEINE CFrame Updates mehr!)
+                elseif currentTarget and myHRP and hasPositioned then
                     myHRP.Velocity = Vector3.new(0, 0, 0)
                     myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
                 end
             end)
         else
             currentTarget = nil
+            hasPositioned = false
         end
     end
 end)
@@ -432,4 +441,4 @@ task.spawn(function()
 end)
 
 print("✅ Dungeon Autofarm Script VOLLSTÄNDIG geladen!")
-print("📦 Features: Lobby Creation, Autofarm (Fixed), Auto Swing, Auto Upgrade, Auto Collect")
+print("📦 Features: Lobby Creation, Autofarm (Horizontal), Auto Swing, Auto Upgrade, Auto Collect")
