@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON AUTOFARM (90° ROTATION FIX)
+-- 🏰 DUNGEON ULTIMATE - AUTO-NEXT TARGET & 90° ROTATION
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -13,65 +13,96 @@ _G.Hub.Toggles = _G.Hub.Toggles or {}
 _G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10
 
 local currentTarget = nil
-local debugTimer = 0
+local selUpgrade = "DungeonHealth"
+local selDungeon, selDiff = "Space", "Easy"
 
--- [HIER IST DIE ROTATIONS-LOGIK]
+local diffMap = {["Easy"] = 1, ["Medium"] = 2, ["Hard"] = 3, ["Nightmare"] = 4}
+local upgradeMap = {
+    ["Health"] = "DungeonHealth", ["Damage"] = "DungeonDamage",
+    ["Crit Chance"] = "DungeonCritChance", ["Incubator Slots"] = "DungeonEggSlots",
+    ["Coins Boost"] = "DungeonCoins"
+}
+
+-- ========================================================
+-- UI SECTION
+-- ========================================================
+Tab:CreateSection("🏛️ Lobby Management")
+Tab:CreateDropdown({Name = "Select Dungeon", Options = {"Space", "Castle", "Forest", "Desert"}, CurrentOption = "Space", Callback = function(v) selDungeon = v end})
+Tab:CreateDropdown({Name = "Select Difficulty", Options = {"Easy", "Medium", "Hard", "Nightmare"}, CurrentOption = "Easy", Callback = function(v) selDiff = v end})
+Tab:CreateButton({Name = "🔨 Create Lobby", Callback = function() RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", "Public", selDungeon, diffMap[selDiff] or 1) end})
+Tab:CreateButton({Name = "▶️ Start Dungeon", Callback = function() RS.Events.UIAction:FireServer("DungeonGroupAction", "Start") end})
+
+Tab:CreateSection("⚔️ Dungeon Farming")
+Tab:CreateToggle({Name = "Enable Autofarm", CurrentValue = false, Callback = function(v) _G.Hub.Toggles.AutoFarm = v currentTarget = nil end})
+Tab:CreateToggle({Name = "Auto Swing", CurrentValue = false, Callback = function(v) _G.Hub.Toggles.AutoSwing = v end})
+Tab:CreateSlider({Name = "Farm Height", Min = 5, Max = 30, CurrentValue = 10, Callback = function(v) _G.Hub.Config.FarmHeight = v end})
+
+Tab:CreateSection("🆙 Upgrades")
+Tab:CreateDropdown({Name = "Select Upgrade", Options = {"Health", "Damage", "Crit Chance", "Incubator Slots", "Coins Boost"}, CurrentOption = "Health", Callback = function(v) selUpgrade = upgradeMap[v] end})
+Tab:CreateToggle({Name = "Auto Buy Upgrade", CurrentValue = false, Callback = function(v) _G.Hub.Toggles.AutoDungeonUpgrade = v end})
+
+-- ========================================================
+-- LOGIC: SMOOTH 90° FOLLOW (RENDERSTEPPED)
+-- ========================================================
 RunService.RenderStepped:Connect(function()
-    if _G.Hub.Toggles.AutoFarm and currentTarget then
+    if _G.Hub.Toggles.AutoFarm and currentTarget and currentTarget.Parent then
         local char = Player.Character
         local myHRP = char and char:FindFirstChild("HumanoidRootPart")
         
-        if myHRP and currentTarget.Parent then
-            local hp = currentTarget.Parent:GetAttribute("Health")
-            if not hp or hp <= 0 then
+        if myHRP then
+            -- Live Check: Wenn HP 0, Ziel sofort verwerfen
+            local hp = currentTarget.Parent:GetAttribute("Health") or 0
+            if hp <= 0 then
                 currentTarget = nil
                 return
             end
             
-            -- Berechne Position über dem Gegner
             local targetPosition = currentTarget.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
-            
-            -- DER FIX: CFrame mit 90 Grad Drehung auf der X-Achse
-            -- math.rad(-90) lässt den Charakter direkt nach unten schauen
             myHRP.CFrame = CFrame.new(targetPosition) * CFrame.Angles(math.rad(-90), 0, 0)
-            
-            -- Verhindert Wegdriften
             myHRP.Velocity = Vector3.new(0, 0, 0)
-            myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
         end
+    else
+        currentTarget = nil -- Sicherheitshalber zurücksetzen, wenn Toggle aus
     end
 end)
 
--- [ZIEL-SUCHE LOOP]
+-- ========================================================
+-- LOGIC: AGGRESSIVE TARGET SCANNER
+-- ========================================================
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(0.1) -- Schneller Scan für flüssiges Farmen
+        
         if _G.Hub.Toggles.AutoFarm then
-            local dId = Player:GetAttribute("DungeonId")
-            if dId then
+            -- Nur suchen, wenn wir kein aktives Ziel haben oder das Ziel tot ist
+            local needsTarget = false
+            if not currentTarget or not currentTarget.Parent or (currentTarget.Parent:GetAttribute("Health") or 0) <= 0 then
+                needsTarget = true
+            end
+
+            if needsTarget then
                 pcall(function()
-                    local dFolder = WS.DungeonStorage:FindFirstChild(tostring(dId))
-                    if dFolder then
-                        local important = dFolder:FindFirstChild("Important")
-                        local found = false
-                        local spawners = {"GreenEnemySpawner", "BlueEnemySpawner", "RedEnemySpawner", "PurpleEnemySpawner", "PurpleBossEnemySpawner"}
-                        
-                        for _, sName in pairs(spawners) do
-                            local sFolder = important:FindFirstChild(sName)
-                            if sFolder then
-                                for _, bot in pairs(sFolder:GetChildren()) do
-                                    local hp = bot:GetAttribute("Health") or 0
-                                    if bot:IsA("Model") and hp > 0 then
-                                        local hrp = bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
-                                        if hrp then
-                                            currentTarget = hrp
-                                            found = true
-                                            break
+                    local dId = Player:GetAttribute("DungeonId")
+                    if dId then
+                        local dFolder = WS.DungeonStorage:FindFirstChild(tostring(dId))
+                        if dFolder and dFolder:FindFirstChild("Important") then
+                            local spawners = {"GreenEnemySpawner", "BlueEnemySpawner", "RedEnemySpawner", "PurpleEnemySpawner", "PurpleBossEnemySpawner"}
+                            local newTarget = nil
+                            
+                            for _, sName in pairs(spawners) do
+                                local folder = dFolder.Important:FindFirstChild(sName)
+                                if folder then
+                                    for _, bot in pairs(folder:GetChildren()) do
+                                        local hp = bot:GetAttribute("Health") or 0
+                                        if hp > 0 then
+                                            newTarget = bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
+                                            if newTarget then break end
                                         end
                                     end
                                 end
+                                if newTarget then break end
                             end
-                            if found then break end
+                            currentTarget = newTarget
                         end
                     end
                 end)
@@ -80,31 +111,25 @@ task.spawn(function()
     end
 end)
 
--- [RESTLICHE LOGIK: SWING & LOBBY]
--- Hier fügst du einfach deine funktionierenden Buttons für Create/Start ein
-
-Tab:CreateToggle({
-    Name = "Enable Autofarm", 
-    CurrentValue = false, 
-    Callback = function(v) 
-        _G.Hub.Toggles.AutoFarm = v 
-        currentTarget = nil
-        print("🔘 Autofarm: " .. tostring(v))
-    end
-})
-
-Tab:CreateToggle({
-    Name = "Auto Swing",
-    CurrentValue = false,
-    Callback = function(v)
-        _G.Hub.Toggles.AutoSwing = v
-    end
-})
-
+-- ========================================================
+-- LOOPS: SWING & UPGRADES
+-- ========================================================
 task.spawn(function()
-    while task.wait(0.3) do
+    while true do
+        task.wait(0.1)
         if _G.Hub.Toggles.AutoSwing then
             RS.Events.UIAction:FireServer("Swing")
         end
     end
 end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if _G.Hub.Toggles.AutoDungeonUpgrade and selUpgrade then
+            RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade)
+        end
+    end
+end)
+
+print("✅ Dungeon Script geladen - Sucht jetzt automatisch neue Ziele!")
