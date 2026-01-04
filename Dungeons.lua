@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - FIXED)
+-- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - FIXED ROTATION)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -18,6 +18,7 @@ local selUpgrade = "DungeonHealth"
 local debugTimer = 0
 local currentTarget = nil
 local targetPosition = nil
+local rotationSet = false -- Neu: Track ob Rotation bereits gesetzt wurde
 
 -- ========================================================
 -- UI ELEMENTS - LOBBY MANAGEMENT
@@ -100,6 +101,7 @@ Tab:CreateToggle({
         _G.Hub.Toggles.AutoFarm = v 
         currentTarget = nil
         targetPosition = nil
+        rotationSet = false
         print("----------------------------------")
         print("🔘 Autofarm Toggle: " .. tostring(v))
     end
@@ -252,7 +254,7 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- RENDERSTEPPED LOOP FÜR POSITION (OHNE ROTATION!)
+-- RENDERSTEPPED LOOP FÜR POSITION
 -- ========================================================
 
 RunService.RenderStepped:Connect(function()
@@ -261,8 +263,17 @@ RunService.RenderStepped:Connect(function()
         local myHRP = char and char:FindFirstChild("HumanoidRootPart")
         
         if myHRP then
-            -- NUR Position setzen, KEINE Rotation!
-            myHRP.CFrame = CFrame.new(targetPosition)
+            -- Rotation NUR einmal setzen beim neuen Ziel
+            if not rotationSet then
+                myHRP.CFrame = CFrame.new(targetPosition) * CFrame.Angles(math.rad(90), 0, 0)
+                rotationSet = true
+                print("🔄 Rotation auf 90° gesetzt")
+            else
+                -- Danach nur Position halten (Rotation bleibt)
+                local currentRotation = myHRP.CFrame - myHRP.CFrame.Position
+                myHRP.CFrame = CFrame.new(targetPosition) * currentRotation
+            end
+            
             myHRP.Velocity = Vector3.new(0, 0, 0)
             myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
         end
@@ -341,6 +352,7 @@ task.spawn(function()
                                 warn("⚠️ Info: Keine lebenden Gegner in den Spawnern gefunden.")
                                 currentTarget = nil
                                 targetPosition = nil
+                                rotationSet = false
                             end
                         end
                     end
@@ -366,6 +378,7 @@ task.spawn(function()
                 if not targetStillAlive then
                     currentTarget = nil
                     targetPosition = nil
+                    rotationSet = false -- Reset für neues Ziel
                     
                     local ds = WS:FindFirstChild("DungeonStorage")
                     if not ds then return end
@@ -402,6 +415,7 @@ task.spawn(function()
         else
             currentTarget = nil
             targetPosition = nil
+            rotationSet = false
         end
     end
 end)
