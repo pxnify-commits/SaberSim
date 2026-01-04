@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON MASTER ULTIMATE (FINAL REPAIRED VERSION)
+-- 🏰 DUNGEON MASTER ULTIMATE (COMPLETE CONSOLIDATED VERSION)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -8,7 +8,7 @@ local WS = game:GetService("Workspace")
 local Player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 
--- Initialisierung der Konfiguration
+-- Initialisierung der globalen Konfiguration
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 _G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10
@@ -18,7 +18,7 @@ local dungeonNames, diffNames, diffMap = {}, {}, {}
 local selDungeon, selDiff = "", ""
 local selUpgrade = "DungeonDamage"
 
--- Mapping für Upgrades (Verhindert "index nil with number")
+-- Sicheres Mapping für Upgrades zur Vermeidung von "index nil with number" Fehlern
 local upgradeMapping = {
     ["Damage ⚔️"] = "DungeonDamage",
     ["Health ❤️"] = "DungeonHealth",
@@ -27,13 +27,13 @@ local upgradeMapping = {
     ["Egg Slots 🥚"] = "DungeonEggSlots"
 }
 
--- 1. DYNAMISCHE DATEN MIT EXAKTEN ERROR-BACKUPS
+-- 1. DYNAMISCHE DATEN-LOGIK MIT ERROR-BACKUPS
 local function RefreshDungeonData()
     local success, Info = pcall(function() 
         return require(RS.Modules:WaitForChild("DungeonInfo", 3)) 
     end)
     
-    if success and Info then
+    if success and Info and Info.Dungeons and Info.Difficulties then
         dungeonNames = {}
         for name, _ in pairs(Info.Dungeons) do table.insert(dungeonNames, name) end
         
@@ -45,6 +45,7 @@ local function RefreshDungeonData()
         end
     else
         warn("⚠️ Modul nicht gefunden! Benutze Error-Backups.")
+        -- Deine spezifischen Backup-Vorgaben
         dungeonNames = {"Error404", "Error405", "Error406", "Error407", "Error505"}
         diffNames = {"Error408", "Error409", "Error410", "Error411"}
         diffMap = {
@@ -143,7 +144,7 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoUpgrade = v end
 })
 
--- 5. LOGIK: AUTO UPGRADE LOOP
+-- 5. LOGIK: AUTO UPGRADE LOOP (Sicher gegen Nil-Fehler)
 task.spawn(function()
     while true do
         task.wait(1)
@@ -155,7 +156,7 @@ task.spawn(function()
     end
 end)
 
--- 6. GEGNER-ERKENNUNG (AGGRESSIV)
+-- 6. GEGNER-ERKENNUNG (Prüft Attribute und Humanoids)
 local function GetNextTarget()
     local dId = Player:GetAttribute("DungeonId")
     if not dId then return nil end
@@ -179,9 +180,10 @@ local function GetNextTarget()
     return target
 end
 
--- 7. LIVE LOGIK: 90° ROTATION & POSITION
+-- 7. LIVE LOGIK: 90° ROTATION & LIVE HEIGHT POSITIONING
 RunService.RenderStepped:Connect(function()
     if _G.Hub.Toggles.AutoFarm then
+        -- Validierung des Ziels
         if not currentTarget or not currentTarget.Parent or (currentTarget.Parent:GetAttribute("Health") or 0) <= 0 then
             currentTarget = GetNextTarget()
         end
@@ -190,6 +192,7 @@ RunService.RenderStepped:Connect(function()
             local char = Player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
+                -- Nutzt den Slider-Wert live aus der globalen Config
                 local h = _G.Hub.Config.FarmHeight or 10
                 hrp.CFrame = CFrame.new(currentTarget.Position + Vector3.new(0, h, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
                 hrp.Velocity = Vector3.new(0, 0, 0)
@@ -208,4 +211,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Full Dungeon Script geladen. Upgrades fixiert, Slider aktiv, Backups Error404-505/408-411 gesetzt.")
+print("✅ Dungeon Script geladen: Error-Backups aktiv, Upgrade-Fix integriert und Slider live-fähig.")
