@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON MODULE (ORIGINAL UI + IMPROVED SCANNER)
+-- 🏰 DUNGEON MODULE (ULTIMATE EDITION - POSITION FIX)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -7,15 +7,14 @@ local RS = game:GetService("ReplicatedStorage")
 local WS = game:GetService("Workspace")
 local Player = game.Players.LocalPlayer
 
--- Konfigurationen
+-- 1. KONFIGURATIONEN & SPEICHER
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 _G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10
 
--- Speicher für Auswahl
 local selDungeon, selDiff, selPrivacy = "Space", "Easy", "Public"
-local dungeonNames, diffNames, diffMap = {"Space"}, {"Easy"}, {["Easy"] = 1}
 local selUpgrade = "DungeonHealth"
+local dungeonNames, diffNames, diffMap = {"Space"}, {"Easy"}, {["Easy"] = 1}
 
 local upgradeMap = {
     ["Health"] = "DungeonHealth", ["Damage"] = "DungeonDamage",
@@ -24,7 +23,7 @@ local upgradeMap = {
     ["Crowns Boost"] = "DungeonCrowns"
 }
 
--- 1. DYNAMISCHE DATEN (Dungeon Info)
+-- 2. DYNAMISCHE DATEN LADEN
 local function RefreshData()
     local success, Info = pcall(function() return require(RS.Modules:WaitForChild("DungeonInfo", 5)) end)
     if success and Info and Info.Dungeons and Info.Difficulties then
@@ -40,7 +39,7 @@ local function RefreshData()
 end
 RefreshData()
 
--- 2. UI: MANAGEMENT (Wie davor)
+-- 3. UI: MANAGEMENT (Lobby & Start)
 Tab:CreateSection("🏰 Dungeon Management")
 
 Tab:CreateDropdown({
@@ -67,7 +66,9 @@ Tab:CreateDropdown({
 Tab:CreateButton({
     Name = "🔨 Create Lobby",
     Callback = function()
-        RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", tostring(selPrivacy), tostring(selDungeon), tonumber(diffMap[selDiff]) or 1)
+        local pArg = tostring(selPrivacy)
+        if pArg:find("table:") then pArg = "Public" end 
+        RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", pArg, tostring(selDungeon), tonumber(diffMap[selDiff]) or 1)
     end
 })
 
@@ -78,7 +79,7 @@ Tab:CreateButton({
     end
 })
 
--- 3. UI: AUTOFARM EINSTELLUNGEN
+-- 4. UI: AUTOFARM
 Tab:CreateSection("⚔️ Dungeon Autofarm")
 
 Tab:CreateToggle({
@@ -88,14 +89,14 @@ Tab:CreateToggle({
 })
 
 Tab:CreateSlider({
-    Name = "Farm Height",
+    Name = "Farm Height (Höhe)",
     Min = 5,
-    Max = 30,
+    Max = 50,
     CurrentValue = 10,
     Callback = function(v) _G.Hub.Config.FarmHeight = v end
 })
 
--- 4. UI: UPGRADES & INCUBATOR
+-- 5. UI: UPGRADES & INCUBATOR
 Tab:CreateSection("🆙 Upgrades & Incubator")
 
 Tab:CreateDropdown({
@@ -120,51 +121,53 @@ Tab:CreateToggle({
     Callback = function(v) _G.Hub.Toggles.AutoIncubator = v end
 })
 
--- 5. HAUPT-LOGIK LOOP
+-- 6. HAUPT-LOGIK LOOP
 task.spawn(function()
     while true do
-        task.wait(0.05)
+        task.wait(0.05) -- Kürzere Wartezeit für besseres Ansprechverhalten
         
         if _G.Hub.Toggles.AutoFarm then
             pcall(function()
-                local storage = WS:FindFirstChild("DungeonStorage")
-                if storage then
-                    -- Findet den dynamischen Ordner
-                    local currentDungeon = storage:FindFirstChildOfClass("Folder") or storage:GetChildren()[1]
+                local dungeonStorage = WS:FindFirstChild("DungeonStorage")
+                if dungeonStorage then
+                    local currentDungeon = dungeonStorage:FindFirstChildOfClass("Folder") or dungeonStorage:GetChildren()[1]
+                    
                     if currentDungeon and currentDungeon:FindFirstChild("Important") then
                         local important = currentDungeon.Important
-                        local spawnerTypes = {"Green", "Blue", "Purple", "Red", "PurpleBoss"}
-                        local targetBot = nil
+                        local spawnerColors = {"Green", "Blue", "Purple", "Red", "PurpleBoss"}
+                        local foundTarget = false
 
-                        -- Scannt alle Spawner in der Reihenfolge
-                        for _, color in pairs(spawnerTypes) do
-                            if targetBot then break end
+                        -- Suche nach dem nächsten Bot
+                        for _, color in pairs(spawnerColors) do
+                            if foundTarget then break end
                             local sName = color .. "EnemySpawner"
-                            for _, obj in pairs(important:GetChildren()) do
-                                if obj.Name == sName then
-                                    for _, bot in pairs(obj:GetChildren()) do
-                                        -- Health-Check via Attribute
-                                        if bot:GetAttribute("Health") and bot:GetAttribute("Health") > 0 and bot:FindFirstChild("HumanoidRootPart") then
-                                            targetBot = bot
+                            
+                            for _, spawner in pairs(important:GetChildren()) do
+                                if spawner.Name == sName then
+                                    for _, bot in pairs(spawner:GetChildren()) do
+                                        local hp = bot:GetAttribute("Health")
+                                        local hrp = bot:FindFirstChild("HumanoidRootPart")
+                                        
+                                        if hp and hp > 0 and hrp then
+                                            foundTarget = true
+                                            local char = Player.Character
+                                            if char and char:FindFirstChild("HumanoidRootPart") then
+                                                -- 90 Grad nach unten schauen
+                                                local rotation = CFrame.Angles(math.rad(-90), 0, 0)
+                                                
+                                                -- Klebe am Bot bis er stirbt
+                                                repeat
+                                                    task.wait()
+                                                    if hrp and _G.Hub.Toggles.AutoFarm then
+                                                        char.HumanoidRootPart.CFrame = CFrame.new(hrp.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)) * rotation
+                                                    end
+                                                until not bot.Parent or bot:GetAttribute("Health") <= 0 or not _G.Hub.Toggles.AutoFarm
+                                            end
                                             break
                                         end
                                     end
                                 end
-                                if targetBot then break end
                             end
-                        end
-
-                        -- Teleport-Logik (90 Grad Winkel)
-                        if targetBot and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-                            local hrp = targetBot.HumanoidRootPart
-                            local rotation = CFrame.Angles(math.rad(-90), 0, 0)
-                            
-                            repeat 
-                                task.wait() 
-                                if hrp and _G.Hub.Toggles.AutoFarm then
-                                    Player.Character.HumanoidRootPart.CFrame = CFrame.new(hrp.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)) * rotation
-                                end
-                            until not targetBot.Parent or targetBot:GetAttribute("Health") <= 0 or not _G.Hub.Toggles.AutoFarm
                         end
                     end
                 end
