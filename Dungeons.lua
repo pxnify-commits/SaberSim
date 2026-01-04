@@ -186,7 +186,13 @@ Tab:CreateToggle({
     end
 })
 
--- FIX: Slider mit besserer Fehlerbehandlung
+Tab:CreateToggle({
+    Name = "Auto Swing", 
+    CurrentValue = false, 
+    Callback = function(v) _G.Hub.Toggles.AutoSwing = v end
+})
+
+-- FIX: Slider mit besserer Fehlerbehandlung - JETZT UNTER AUTO SWING
 pcall(function()
     Tab:CreateSlider({
         Name = "Farm Height (Abstand)", 
@@ -198,12 +204,6 @@ pcall(function()
         end
     })
 end)
-
-Tab:CreateToggle({
-    Name = "Auto Swing", 
-    CurrentValue = false, 
-    Callback = function(v) _G.Hub.Toggles.AutoSwing = v end
-})
 
 -- ========================================================
 -- 5. UI SECTION: SMART UPGRADES
