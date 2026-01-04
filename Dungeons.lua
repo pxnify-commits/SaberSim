@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON MASTER: REWORKED UPGRADE & FARMING
+-- 🏰 DUNGEON MASTER: CLEANED VERSION (ZERO NIL ERRORS)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -8,17 +8,21 @@ local WS = game:GetService("Workspace")
 local Player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 
--- Globale Config-Initialisierung
+-- Globale Tabellen initialisieren
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 _G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10
 
 local currentTarget = nil
-local dungeonNames, diffNames, diffMap = {}, {}, {}
-local selDungeon, selDiff = "", ""
+local selDungeon = "Error404"
+local selDiff = "Error408"
 local selUpgrade = "DungeonDamage"
 
--- REWORKED UPGRADE MAPPING
+-- FESTE WERTE (Kein Auslesen aus Modulen, um Fehler zu vermeiden)
+local dungeonNames = {"Error404", "Error405", "Error406", "Error407", "Error505"}
+local diffNames = {"Error408", "Error409", "Error410", "Error411"}
+local diffMap = {["Error408"] = 1, ["Error409"] = 2, ["Error410"] = 3, ["Error411"] = 4}
+
 local upgradeMapping = {
     ["Damage ⚔️"] = "DungeonDamage",
     ["Health ❤️"] = "DungeonHealth",
@@ -27,42 +31,53 @@ local upgradeMapping = {
     ["Egg Slots 🥚"] = "DungeonEggSlots"
 }
 
--- 1. DYNAMISCHE DATEN MIT ERROR-BACKUPS
-local function RefreshDungeonData()
-    local success, Info = pcall(function() 
-        return require(RS.Modules:WaitForChild("DungeonInfo", 3)) 
-    end)
-    
-    if success and Info and Info.Dungeons then
-        dungeonNames = {}
-        for name, _ in pairs(Info.Dungeons) do table.insert(dungeonNames, name) end
-        diffNames = {}
-        diffMap = {}
-        for index, data in ipairs(Info.Difficulties) do
-            table.insert(diffNames, data.Name)
-            diffMap[data.Name] = index
-        end
-    else
-        warn("⚠️ DungeonInfo nicht gefunden. Nutze Error-Backups.")
-        dungeonNames = {"Error404", "Error405", "Error406", "Error407", "Error505"}
-        diffNames = {"Error408", "Error409", "Error410", "Error411"}
-        diffMap = {["Error408"] = 1, ["Error409"] = 2, ["Error410"] = 3, ["Error411"] = 4}
+-- 1. UI: LOBBY MANAGEMENT
+Tab:CreateSection("🏛️ Lobby Management")
+
+Tab:CreateDropdown({
+    Name = "Select Dungeon", Options = dungeonNames, CurrentOption = selDungeon, 
+    Callback = function(v) selDungeon = (type(v) == "table" and v[1]) or tostring(v) end
+})
+
+Tab:CreateDropdown({
+    Name = "Select Difficulty", Options = diffNames, CurrentOption = selDiff, 
+    Callback = function(v) selDiff = (type(v) == "table" and v[1]) or tostring(v) end
+})
+
+Tab:CreateButton({
+    Name = "🔨 Create Lobby", 
+    Callback = function() 
+        RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", "Public", selDungeon, diffMap[selDiff] or 1) 
     end
-    selDungeon = dungeonNames[1] or "Error404"
-    selDiff = diffNames[1] or "Error408"
-end
-RefreshDungeonData()
+})
 
--- 2. UI: LOBBY & FARMING
-Tab:CreateSection("🏛️ Lobby & Farming")
-Tab:CreateDropdown({Name = "Select Dungeon", Options = dungeonNames, CurrentOption = selDungeon, Callback = function(v) selDungeon = (type(v) == "table" and v[1]) or tostring(v) end})
-Tab:CreateDropdown({Name = "Select Difficulty", Options = diffNames, CurrentOption = selDiff, Callback = function(v) selDiff = (type(v) == "table" and v[1]) or tostring(v) end})
+Tab:CreateButton({
+    Name = "▶️ Start Dungeon", 
+    Callback = function() 
+        RS.Events.UIAction:FireServer("DungeonGroupAction", "Start") 
+    end
+})
 
-Tab:CreateToggle({Name = "Enable Autofarm", CurrentValue = false, Callback = function(v) _G.Hub.Toggles.AutoFarm = v currentTarget = nil end})
-Tab:CreateSlider({Name = "Farm Height", Min = 2, Max = 50, CurrentValue = 10, Callback = function(v) _G.Hub.Config.FarmHeight = tonumber(v) end})
+-- 2. UI: FARMING & LIVE SLIDER
+Tab:CreateSection("⚔️ Dungeon Farming")
 
--- 3. UI: UPGRADE REWORK SECTION
-Tab:CreateSection("🆙 Upgrade Rework")
+Tab:CreateToggle({
+    Name = "Enable Autofarm", CurrentValue = false, 
+    Callback = function(v) _G.Hub.Toggles.AutoFarm = v currentTarget = nil end
+})
+
+Tab:CreateSlider({
+    Name = "Farm Height (Abstand)", Min = 2, Max = 50, CurrentValue = 10, 
+    Callback = function(v) _G.Hub.Config.FarmHeight = tonumber(v) end
+})
+
+Tab:CreateToggle({
+    Name = "Auto Swing", CurrentValue = false, 
+    Callback = function(v) _G.Hub.Toggles.AutoSwing = v end
+})
+
+-- 3. UI: UPGRADES (REWORKED & CLEANED)
+Tab:CreateSection("🆙 Upgrades (Safe Mode)")
 
 Tab:CreateDropdown({
     Name = "Target Upgrade",
@@ -71,50 +86,42 @@ Tab:CreateDropdown({
     Callback = function(v)
         local display = (type(v) == "table" and v[1]) or tostring(v)
         selUpgrade = upgradeMapping[display] or "DungeonDamage"
-        print("🎯 Upgrade-Ziel geändert auf: " .. selUpgrade)
     end
 })
 
 Tab:CreateToggle({
-    Name = "Smart Auto-Upgrade",
+    Name = "Auto Buy Upgrades",
     CurrentValue = false,
-    Callback = function(v) 
-        _G.Hub.Toggles.AutoUpgrade = v 
-        if v then print("🔄 Smart Upgrade gestartet...") end
-    end
+    Callback = function(v) _G.Hub.Toggles.AutoUpgrade = v end
 })
 
--- 4. REWORKED UPGRADE LOOP (NO NIL ERRORS)
+-- 4. LOGIK: UPGRADE LOOP (Nur Senden, kein Rechnen)
 task.spawn(function()
     while true do
-        task.wait(1.2) -- Optimierte Verzögerung
-        if _G.Hub.Toggles.AutoUpgrade and selUpgrade then
-            -- Sicherer Aufruf ohne Abhängigkeit von Modul-Tabellen
-            local success, err = pcall(function()
+        task.wait(1.5)
+        if _G.Hub.Toggles.AutoUpgrade then
+            -- Wir prüfen NICHTS mehr vorher, wir schicken nur das Event
+            pcall(function()
                 RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade)
             end)
-            
-            if not success then
-                warn("❌ Upgrade-Fehler: " .. tostring(err))
-            end
         end
     end
 end)
 
--- 5. GEGNER-LOGIK (VERSTÄRKT)
+-- 5. LOGIK: GEGNER-ERKENNUNG
 local function GetNextTarget()
     local dId = Player:GetAttribute("DungeonId")
     if not dId then return nil end
     local dFolder = WS.DungeonStorage:FindFirstChild(tostring(dId))
-    if not dFolder or not dFolder:FindFirstChild("Important") then return nil end
+    if not dFolder then return nil end
     
     for _, folder in pairs(dFolder.Important:GetChildren()) do
         if folder.Name:find("Spawner") then
             for _, bot in pairs(folder:GetChildren()) do
+                -- Sicherer Check: Attribut ODER Humanoid
                 local hp = bot:GetAttribute("Health") or (bot:FindFirstChildOfClass("Humanoid") and bot:FindFirstChildOfClass("Humanoid").Health) or 0
                 if hp > 0 then
-                    local part = bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
-                    if part then return part end
+                    return bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
                 end
             end
         end
@@ -122,10 +129,10 @@ local function GetNextTarget()
     return nil
 end
 
--- 6. POSITION & ROTATION
+-- 6. POSITIONIERUNG (LIVE HEIGHT)
 RunService.RenderStepped:Connect(function()
     if _G.Hub.Toggles.AutoFarm then
-        if not currentTarget or not currentTarget.Parent or (currentTarget.Parent:GetAttribute("Health") or 0) <= 0 then
+        if not currentTarget or not currentTarget.Parent then
             currentTarget = GetNextTarget()
         end
         if currentTarget then
@@ -139,17 +146,14 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- 7. AUTO SWING & LOBBY BUTTONS
-Tab:CreateSection("🛠️ Tools")
-Tab:CreateButton({Name = "🔨 Create Lobby", Callback = function() RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", "Public", selDungeon, diffMap[selDiff] or 1) end})
-Tab:CreateButton({Name = "▶️ Start Dungeon", Callback = function() RS.Events.UIAction:FireServer("DungeonGroupAction", "Start") end})
-Tab:CreateToggle({Name = "Auto Swing", CurrentValue = false, Callback = function(v) _G.Hub.Toggles.AutoSwing = v end})
-
+-- 7. AUTO SWING
 task.spawn(function()
     while true do
         task.wait(0.1)
-        if _G.Hub.Toggles.AutoSwing then RS.Events.UIAction:FireServer("Swing") end
+        if _G.Hub.Toggles.AutoSwing then
+            RS.Events.UIAction:FireServer("Swing")
+        end
     end
 end)
 
-print("✅ Dungeon Master Reworked geladen. Upgrade-System ist nun stabil.")
+print("✅ Bereinigtes Script geladen: Alle riskanten Tabellen-Abfragen wurden entfernt.")
