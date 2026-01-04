@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON ULTIMATE HUB (REPAIRED & DEBUG VERSION)
+-- 🏰 DUNGEON ULTIMATE HUB (FINAL SYNC VERSION)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -7,7 +7,7 @@ local RS = game:GetService("ReplicatedStorage")
 local WS = game:GetService("Workspace")
 local Player = game.Players.LocalPlayer
 
--- 1. KONFIGURATIONEN
+-- 1. KONFIGURATIONEN & SPEICHER
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
 _G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10
@@ -58,40 +58,40 @@ Tab:CreateDropdown({Name = "Select Upgrade", Options = {"Health", "Damage", "Cri
 Tab:CreateToggle({Name = "Auto Buy Upgrade", CurrentValue = false, Callback = function(v) _G.Hub.Toggles.AutoDungeonUpgrade = v end})
 Tab:CreateToggle({Name = "Auto Claim Incubator", CurrentValue = false, Callback = function(v) _G.Hub.Toggles.AutoIncubator = v end})
 
--- 4. HAUPT-LOGIK (TP & DEBUG)
+-- 4. HAUPT-LOGIK (TELEPORT & DEBUG)
 task.spawn(function()
-    print("🚀 Dungeon-Logik aktiv. Prüfe Pfade...")
+    print("🚀 Dungeon-Logik mit ID-Synchronisation gestartet!")
+    
     while true do
         task.wait(0.01)
+        
         if _G.Hub.Toggles.AutoFarm then
             local char = Player.Character
             local myHRP = char and char:FindFirstChild("HumanoidRootPart")
-            if myHRP then
+            
+            -- Nutzt das DungeonId-Attribut vom Spieler für den Pfad
+            local dungeonId = Player:GetAttribute("DungeonId")
+            
+            if myHRP and dungeonId then
                 pcall(function()
                     local ds = WS:FindFirstChild("DungeonStorage")
-                    if not ds then return end
-
-                    -- Dynamische Pfadfindung
-                    local dungeonFolder = nil
-                    for _, child in pairs(ds:GetChildren()) do
-                        if child:IsA("Folder") and child:FindFirstChild("Important") then
-                            dungeonFolder = child
-                            break
-                        end
-                    end
-
-                    if dungeonFolder then
+                    local dungeonFolder = ds and ds:FindFirstChild(dungeonId)
+                    
+                    if dungeonFolder and dungeonFolder:FindFirstChild("Important") then
+                        local important = dungeonFolder.Important
                         local targetPart = nil
                         local targetBot = nil
+                        
+                        -- Liste der Spawner aus dem Explorer
                         local spawners = {"GreenEnemySpawner", "BlueEnemySpawner", "RedEnemySpawner", "PurpleEnemySpawner", "PurpleBossEnemySpawner"}
                         
-                        -- Bot-Suche
                         for _, sName in pairs(spawners) do
-                            local sFolder = dungeonFolder.Important:FindFirstChild(sName)
+                            local sFolder = important:FindFirstChild(sName)
                             if sFolder then
                                 for _, bot in pairs(sFolder:GetChildren()) do
-                                    local hp = bot:GetAttribute("Health")
-                                    if bot:IsA("Model") and hp and hp > 0 then
+                                    -- Prüft Health-Attribut gemäß Properties
+                                    local hp = bot:GetAttribute("Health") or 0
+                                    if bot:IsA("Model") and hp > 0 then
                                         targetPart = bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
                                         if targetPart then targetBot = bot break end
                                     end
@@ -100,19 +100,21 @@ task.spawn(function()
                             if targetPart then break end
                         end
 
-                        -- DEBUG PRINT (Alle 2 Sek)
+                        -- DEBUG OUTPUT (Alle 2 Sekunden)
                         if tick() - debugTimer > 2 then
                             if targetBot then
-                                print("✅ BOT GEFUNDEN: " .. targetBot.Name)
-                                print("📍 Bot-Position: " .. tostring(targetPart.Position))
-                                print("🛤️ MoveTo Attribut: " .. tostring(targetBot:GetAttribute("MoveTo")))
+                                print("--- [DUNGEON STATUS] ---")
+                                print("👾 Ziel-Bot: " .. targetBot.Name)
+                                print("📍 Bot Pos: " .. tostring(targetPart.Position))
+                                print("🛤️ MoveTo Pos: " .. tostring(targetBot:GetAttribute("MoveTo"))) --
+                                print("❤️ Health: " .. tostring(targetBot:GetAttribute("Health")))
                             else
-                                warn("🔍 Suche... Kein lebender Bot im Dungeon gefunden.")
+                                warn("🔍 Suche... Dungeon-Ordner gefunden, aber keine lebenden Bots!")
                             end
                             debugTimer = tick()
                         end
 
-                        -- Teleport
+                        -- Teleport Ausführung
                         if targetPart then
                             myHRP.Velocity = Vector3.new(0,0,0)
                             myHRP.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
@@ -121,21 +123,28 @@ task.spawn(function()
                 end)
             end
         end
+        
+        -- Auto Swing
         if _G.Hub.Toggles.AutoSwing then
             RS.Events.UIAction:FireServer("Swing")
         end
     end
 end)
 
--- 5. UPGRADES (Ohne Index-Fehler)
+-- 5. UPGRADES & INCUBATOR (FIXED INDEX ERROR)
 task.spawn(function()
     while true do
         task.wait(1)
         if _G.Hub.Toggles.AutoDungeonUpgrade and selUpgrade then
-            pcall(function() RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade) end)
+            pcall(function() 
+                -- Entfernt den numerischen Index, um nil-Fehler zu vermeiden
+                RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade) 
+            end)
         end
         if _G.Hub.Toggles.AutoIncubator then
-            pcall(function() RS.Events.UIAction:FireServer("IncubatorAction", "ClaimAll") end)
+            pcall(function() 
+                RS.Events.UIAction:FireServer("IncubatorAction", "ClaimAll") 
+            end)
         end
     end
 end)
