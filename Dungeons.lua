@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - FIXED ROTATION)
+-- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - DYNAMIC HEIGHT)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -17,8 +17,7 @@ _G.Hub.Config.SelectedMap = _G.Hub.Config.SelectedMap or "Castle"
 local selUpgrade = "DungeonHealth"
 local debugTimer = 0
 local currentTarget = nil
-local targetPosition = nil
-local rotationSet = false -- Neu: Track ob Rotation bereits gesetzt wurde
+local rotationSet = false
 
 -- ========================================================
 -- UI ELEMENTS - LOBBY MANAGEMENT
@@ -100,7 +99,6 @@ Tab:CreateToggle({
     Callback = function(v) 
         _G.Hub.Toggles.AutoFarm = v 
         currentTarget = nil
-        targetPosition = nil
         rotationSet = false
         print("----------------------------------")
         print("🔘 Autofarm Toggle: " .. tostring(v))
@@ -254,15 +252,26 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- RENDERSTEPPED LOOP FÜR POSITION
+-- RENDERSTEPPED LOOP FÜR POSITION (DYNAMISCHE HÖHE)
 -- ========================================================
 
 RunService.RenderStepped:Connect(function()
-    if _G.Hub.Toggles.AutoFarm and targetPosition then
+    if _G.Hub.Toggles.AutoFarm and currentTarget then
         local char = Player.Character
         local myHRP = char and char:FindFirstChild("HumanoidRootPart")
         
-        if myHRP then
+        if myHRP and currentTarget.Parent then
+            -- Prüfe ob Ziel noch lebt
+            local hp = currentTarget.Parent:GetAttribute("Health")
+            if not hp or hp <= 0 then
+                currentTarget = nil
+                rotationSet = false
+                return
+            end
+            
+            -- DYNAMISCHE Position basierend auf AKTUELLER Höhe
+            local targetPosition = currentTarget.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
+            
             -- Rotation NUR einmal setzen beim neuen Ziel
             if not rotationSet then
                 myHRP.CFrame = CFrame.new(targetPosition) * CFrame.Angles(math.rad(90), 0, 0)
@@ -351,7 +360,6 @@ task.spawn(function()
                             if not enemyFound then
                                 warn("⚠️ Info: Keine lebenden Gegner in den Spawnern gefunden.")
                                 currentTarget = nil
-                                targetPosition = nil
                                 rotationSet = false
                             end
                         end
@@ -377,8 +385,7 @@ task.spawn(function()
                 -- Wenn Ziel tot oder keins vorhanden -> Suche neues
                 if not targetStillAlive then
                     currentTarget = nil
-                    targetPosition = nil
-                    rotationSet = false -- Reset für neues Ziel
+                    rotationSet = false
                     
                     local ds = WS:FindFirstChild("DungeonStorage")
                     if not ds then return end
@@ -400,9 +407,7 @@ task.spawn(function()
                                     local targetPart = bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
                                     if targetPart then
                                         currentTarget = targetPart
-                                        targetPosition = targetPart.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
                                         print("🎯 Neues Ziel erfasst: " .. bot.Name)
-                                        print("📍 Zielposition gesetzt: " .. tostring(targetPosition))
                                         break
                                     end
                                 end
@@ -414,7 +419,6 @@ task.spawn(function()
             end)
         else
             currentTarget = nil
-            targetPosition = nil
             rotationSet = false
         end
     end
