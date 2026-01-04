@@ -1,11 +1,12 @@
 -- ========================================================
--- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - HORIZONTAL FLOATING)
+-- 🏰 DUNGEON AUTOFARM (COMPLETE VERSION - FIXED HORIZONTAL)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
 local RS = game:GetService("ReplicatedStorage")
 local WS = game:GetService("Workspace")
 local Player = game.Players.LocalPlayer
+local RunService = game:GetService("RunService")
 
 _G.Hub.Config = _G.Hub.Config or {}
 _G.Hub.Toggles = _G.Hub.Toggles or {}
@@ -16,7 +17,7 @@ _G.Hub.Config.SelectedMap = _G.Hub.Config.SelectedMap or "Castle"
 local selUpgrade = "DungeonHealth"
 local debugTimer = 0
 local currentTarget = nil
-local hasPositioned = false -- Neu: Track ob Position gesetzt wurde
+local targetPosition = nil -- Speichert die Zielposition
 
 -- ========================================================
 -- UI ELEMENTS - LOBBY SECTION
@@ -98,7 +99,7 @@ Tab:CreateToggle({
     Callback = function(v) 
         _G.Hub.Toggles.AutoFarm = v 
         currentTarget = nil
-        hasPositioned = false
+        targetPosition = nil
         print("----------------------------------")
         print("🔘 Autofarm Toggle wurde geklickt: " .. tostring(v))
     end
@@ -227,7 +228,25 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- MAIN AUTOFARM LOOP (MIT HORIZONTALER POSITION)
+-- RENDERSTEPPED LOOP FÜR KONSTANTE POSITION/ROTATION
+-- ========================================================
+
+RunService.RenderStepped:Connect(function()
+    if _G.Hub.Toggles.AutoFarm and targetPosition then
+        local char = Player.Character
+        local myHRP = char and char:FindFirstChild("HumanoidRootPart")
+        
+        if myHRP then
+            -- Halte Position UND Rotation konstant
+            myHRP.CFrame = CFrame.new(targetPosition) * CFrame.Angles(math.rad(90), 0, 0)
+            myHRP.Velocity = Vector3.new(0, 0, 0)
+            myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        end
+    end
+end)
+
+-- ========================================================
+-- MAIN AUTOFARM LOOP (NUR FÜR TARGET FINDING)
 -- ========================================================
 
 task.spawn(function()
@@ -297,7 +316,7 @@ task.spawn(function()
                             if not enemyFound then
                                 warn("⚠️ Info: Keine lebenden Gegner in den Spawnern gefunden.")
                                 currentTarget = nil
-                                hasPositioned = false
+                                targetPosition = nil
                             end
                         end
                     end
@@ -306,7 +325,7 @@ task.spawn(function()
                 debugTimer = tick()
             end
             
-            -- FARMING LOGIK: MIT HORIZONTALER ROTATION
+            -- TARGET FINDING (RenderStepped kümmert sich um Position/Rotation)
             pcall(function()
                 if not (dId and myHRP) then return end
                 
@@ -322,7 +341,7 @@ task.spawn(function()
                 -- Wenn Ziel tot oder keins vorhanden -> Suche neues
                 if not targetStillAlive then
                     currentTarget = nil
-                    hasPositioned = false
+                    targetPosition = nil
                     
                     local ds = WS:FindFirstChild("DungeonStorage")
                     if not ds then return end
@@ -344,7 +363,9 @@ task.spawn(function()
                                     local targetPart = bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
                                     if targetPart then
                                         currentTarget = targetPart
+                                        targetPosition = targetPart.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
                                         print("🎯 Neues Ziel erfasst: " .. bot.Name)
+                                        print("📍 Zielposition gesetzt: " .. tostring(targetPosition))
                                         break
                                     end
                                 end
@@ -353,28 +374,10 @@ task.spawn(function()
                         if currentTarget then break end
                     end
                 end
-                
-                -- EINMALIGER TELEPORT + ROTATION WENN NEUES ZIEL
-                if currentTarget and myHRP and not hasPositioned then
-                    -- Position über dem Gegner
-                    local targetPos = currentTarget.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)
-                    
-                    -- CFrame MIT ROTATION (horizontal/liegend nach unten schauend)
-                    myHRP.CFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(90), 0, 0)
-                    myHRP.Velocity = Vector3.new(0, 0, 0)
-                    
-                    hasPositioned = true
-                    print("⚡ Teleportiert + Rotation gesetzt zu: " .. tostring(targetPos))
-                    
-                -- NUR Velocity halten (KEINE CFrame Updates mehr!)
-                elseif currentTarget and myHRP and hasPositioned then
-                    myHRP.Velocity = Vector3.new(0, 0, 0)
-                    myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                end
             end)
         else
             currentTarget = nil
-            hasPositioned = false
+            targetPosition = nil
         end
     end
 end)
@@ -441,4 +444,4 @@ task.spawn(function()
 end)
 
 print("✅ Dungeon Autofarm Script VOLLSTÄNDIG geladen!")
-print("📦 Features: Lobby Creation, Autofarm (Horizontal), Auto Swing, Auto Upgrade, Auto Collect")
+print("📦 Features: Lobby Creation, Autofarm (RenderStepped Fix), Auto Swing, Auto Upgrade, Auto Collect")
