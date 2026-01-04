@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON MASTER ULTIMATE (SMART LOGIC INTEGRATION)
+-- 🏰 DUNGEON MASTER ULTIMATE (FIXED VERSION)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -30,14 +30,15 @@ local upgradeMapping = {
 -- 1. SMARTE DATEN-LOGIK (LÄDT ECHTE DATEN ODER BACKUPS)
 -- ========================================================
 local function RefreshDungeonData()
-    -- Versuch, die echten Daten vom Spiel-Modul zu ziehen
     local success, Info = pcall(function() 
         return require(RS.Modules:WaitForChild("DungeonInfo", 2)) 
     end)
     
     if success and Info and Info.Dungeons then
         dungeonNames = {}
-        for name, _ in pairs(Info.Dungeons) do table.insert(dungeonNames, name) end
+        for name, _ in pairs(Info.Dungeons) do 
+            table.insert(dungeonNames, name) 
+        end
         
         diffNames = {}
         diffMap = {}
@@ -47,21 +48,32 @@ local function RefreshDungeonData()
         end
         print("✅ Dungeon-Daten erfolgreich vom Spiel geladen.")
     else
-        -- DEINE SMARTEN ERROR-BACKUPS
         warn("⚠️ Spiel-Daten nicht bereit. Nutze Backup-Listen.")
         dungeonNames = {"Error404", "Error405", "Error406", "Error407", "Error505"}
         diffNames = {"Error408", "Error409", "Error410", "Error411"}
         diffMap = {
-            ["Error408"] = 1, ["Error409"] = 2, ["Error410"] = 3, ["Error411"] = 4
+            ["Error408"] = 1, 
+            ["Error409"] = 2, 
+            ["Error410"] = 3, 
+            ["Error411"] = 4
         }
     end
-    selDungeon = dungeonNames[1]
-    selDiff = diffNames[1]
+    
+    -- WICHTIG: Stelle sicher, dass Listen nicht leer sind
+    if #dungeonNames == 0 then
+        dungeonNames = {"No Dungeons Available"}
+    end
+    if #diffNames == 0 then
+        diffNames = {"No Difficulties Available"}
+    end
+    
+    selDungeon = dungeonNames[1] or ""
+    selDiff = diffNames[1] or ""
 end
 RefreshDungeonData()
 
 -- ========================================================
--- 2. VERBESSERTE GEGNER-SUCHE (PRIORISIERT SPAWNER-REIHENFOLGE)
+-- 2. VERBESSERTE GEGNER-SUCHE
 -- ========================================================
 local function GetNextTarget()
     local dId = Player:GetAttribute("DungeonId")
@@ -70,7 +82,6 @@ local function GetNextTarget()
     local dFolder = WS.DungeonStorage:FindFirstChild(tostring(dId))
     if not dFolder or not dFolder:FindFirstChild("Important") then return nil end
     
-    -- Spawner-Priorität: Boss > Purple > Red > Blue > Green
     local spawners = {
         "PurpleBossEnemySpawner",
         "PurpleEnemySpawner", 
@@ -79,12 +90,10 @@ local function GetNextTarget()
         "GreenEnemySpawner"
     }
     
-    -- Durchsuche alle Spawner in Prioritätsreihenfolge
     for _, sName in pairs(spawners) do
         for _, folder in pairs(dFolder.Important:GetChildren()) do
             if folder.Name == sName then
                 for _, bot in pairs(folder:GetChildren()) do
-                    -- Prüft Attribut "Health" oder Humanoid.Health
                     local hp = bot:GetAttribute("Health") or 
                               (bot:FindFirstChildOfClass("Humanoid") and 
                                bot:FindFirstChildOfClass("Humanoid").Health) or 0
@@ -107,33 +116,54 @@ end
 -- ========================================================
 Tab:CreateSection("🏛️ Smart Lobby Management")
 
-Tab:CreateDropdown({
-    Name = "Select Dungeon", 
-    Options = dungeonNames, 
-    CurrentOption = selDungeon, 
-    Callback = function(v) selDungeon = (type(v) == "table" and v[1]) or tostring(v) end
-})
+-- FIX: Sichere Dropdown-Erstellung mit Validierung
+pcall(function()
+    Tab:CreateDropdown({
+        Name = "Select Dungeon", 
+        Options = dungeonNames, 
+        CurrentOption = dungeonNames[1], 
+        Callback = function(v) 
+            if type(v) == "table" then
+                selDungeon = v[1] or ""
+            else
+                selDungeon = tostring(v or "")
+            end
+        end
+    })
+end)
 
-Tab:CreateDropdown({
-    Name = "Select Difficulty", 
-    Options = diffNames, 
-    CurrentOption = selDiff, 
-    Callback = function(v) selDiff = (type(v) == "table" and v[1]) or tostring(v) end
-})
+pcall(function()
+    Tab:CreateDropdown({
+        Name = "Select Difficulty", 
+        Options = diffNames, 
+        CurrentOption = diffNames[1], 
+        Callback = function(v) 
+            if type(v) == "table" then
+                selDiff = v[1] or ""
+            else
+                selDiff = tostring(v or "")
+            end
+        end
+    })
+end)
 
 Tab:CreateButton({
     Name = "🔨 Create & Prepare Lobby", 
     Callback = function() 
         local dIndex = diffMap[selDiff] or 1
         print("🚀 Erstelle Lobby: " .. selDungeon .. " | Stufe: " .. tostring(dIndex))
-        RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", "Public", selDungeon, dIndex) 
+        pcall(function()
+            RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", "Public", selDungeon, dIndex)
+        end)
     end
 })
 
 Tab:CreateButton({
     Name = "▶️ Force Start Dungeon", 
     Callback = function() 
-        RS.Events.UIAction:FireServer("DungeonGroupAction", "Start") 
+        pcall(function()
+            RS.Events.UIAction:FireServer("DungeonGroupAction", "Start")
+        end)
     end
 })
 
@@ -156,11 +186,18 @@ Tab:CreateToggle({
     end
 })
 
-Tab:CreateSlider({
-    Name = "Farm Height (Abstand)", 
-    Min = 2, Max = 50, CurrentValue = _G.Hub.Config.FarmHeight, 
-    Callback = function(v) _G.Hub.Config.FarmHeight = tonumber(v) end
-})
+-- FIX: Slider mit besserer Fehlerbehandlung
+pcall(function()
+    Tab:CreateSlider({
+        Name = "Farm Height (Abstand)", 
+        Range = {2, 50},
+        Increment = 1,
+        CurrentValue = _G.Hub.Config.FarmHeight or 10, 
+        Callback = function(v) 
+            _G.Hub.Config.FarmHeight = tonumber(v) or 10
+        end
+    })
+end)
 
 Tab:CreateToggle({
     Name = "Auto Swing", 
@@ -173,15 +210,22 @@ Tab:CreateToggle({
 -- ========================================================
 Tab:CreateSection("🆙 Smart Upgrades")
 
-Tab:CreateDropdown({
-    Name = "Target Upgrade",
-    Options = {"Damage ⚔️", "Health ❤️", "Crit Chance 💥", "Coins 💰", "Egg Slots 🥚"},
-    CurrentOption = "Damage ⚔️",
-    Callback = function(v)
-        local display = (type(v) == "table" and v[1]) or tostring(v)
-        selUpgrade = upgradeMapping[display] or "DungeonDamage"
-    end
-})
+pcall(function()
+    Tab:CreateDropdown({
+        Name = "Target Upgrade",
+        Options = {"Damage ⚔️", "Health ❤️", "Crit Chance 💥", "Coins 💰", "Egg Slots 🥚"},
+        CurrentOption = "Damage ⚔️",
+        Callback = function(v)
+            local display
+            if type(v) == "table" then
+                display = v[1] or "Damage ⚔️"
+            else
+                display = tostring(v or "Damage ⚔️")
+            end
+            selUpgrade = upgradeMapping[display] or "DungeonDamage"
+        end
+    })
+end)
 
 Tab:CreateToggle({
     Name = "Auto Buy Upgrades",
@@ -190,14 +234,14 @@ Tab:CreateToggle({
 })
 
 -- ========================================================
--- 6. DEBUG SECTION (Optional für Troubleshooting)
+-- 6. DEBUG SECTION
 -- ========================================================
 Tab:CreateSection("🔍 Debug Info")
 
 Tab:CreateButton({
     Name = "Show Current Target", 
     Callback = function()
-        if currentTarget then
+        if currentTarget and currentTarget.Parent then
             print("🎯 Aktuelles Ziel:", currentTarget.Parent.Name)
             print("   Position:", currentTarget.Position)
         else
@@ -223,8 +267,10 @@ Tab:CreateButton({
 -- 7. HAUPT-FARMING LOOP (90° ROTATION & POSITION)
 -- ========================================================
 RunService.RenderStepped:Connect(function()
-    if _G.Hub.Toggles.AutoFarm then
-        -- Ziel-Validierung und Refresh
+    if not _G.Hub.Toggles.AutoFarm then return end
+    
+    pcall(function()
+        -- Ziel-Validierung
         if not currentTarget or 
            not currentTarget.Parent or 
            (currentTarget.Parent:GetAttribute("Health") or 0) <= 0 then
@@ -233,29 +279,27 @@ RunService.RenderStepped:Connect(function()
         
         if currentTarget then
             local char = Player.Character
-            local myHRP = char and char:FindFirstChild("HumanoidRootPart")
+            if not char then return end
             
-            if myHRP then
-                local h = _G.Hub.Config.FarmHeight or 10
-                local targetPos = currentTarget.Position + Vector3.new(0, h, 0)
-                
-                -- 90° Neigung für optimale Treffergenauigkeit
-                myHRP.CFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(-90), 0, 0)
-                
-                -- Verhindert Fallen/Driften
-                myHRP.Velocity = Vector3.new(0, 0, 0)
-                myHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            end
+            local myHRP = char:FindFirstChild("HumanoidRootPart")
+            if not myHRP then return end
+            
+            local h = _G.Hub.Config.FarmHeight or 10
+            local targetPos = currentTarget.Position + Vector3.new(0, h, 0)
+            
+            -- 90° Neigung
+            myHRP.CFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(-90), 0, 0)
+            myHRP.Velocity = Vector3.new(0, 0, 0)
+            myHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         end
-    end
+    end)
 end)
 
 -- ========================================================
--- 8. AUTO SWING LOOP (Hintergrund)
+-- 8. AUTO SWING LOOP
 -- ========================================================
 task.spawn(function()
-    while true do
-        task.wait(0.1)
+    while task.wait(0.1) do
         if _G.Hub.Toggles.AutoSwing and _G.Hub.Toggles.AutoFarm and currentTarget then
             pcall(function() 
                 RS.Events.UIAction:FireServer("Swing") 
@@ -265,11 +309,10 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- 9. AUTO UPGRADE LOOP (Hintergrund)
+-- 9. AUTO UPGRADE LOOP
 -- ========================================================
 task.spawn(function()
-    while true do
-        task.wait(1.5)
+    while task.wait(1.5) do
         if _G.Hub.Toggles.AutoUpgrade then
             pcall(function() 
                 RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade) 
@@ -279,9 +322,4 @@ task.spawn(function()
 end)
 
 print("✅ Dungeon Master ULTIMATE geladen!")
-print("📋 Features:")
-print("   • Smart Lobby Creation")
-print("   • 90° Auto-Target Farming")
-print("   • Auto Swing System")
-print("   • Auto Upgrade System")
-print("   • Debug Tools")
+print("📋 Alle Systeme bereit")
