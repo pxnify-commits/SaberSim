@@ -1,5 +1,5 @@
 -- ========================================================
--- 🏰 DUNGEON MODULE (COMPLETE - DEBUG & FIXED VERSION)
+-- 🏰 DUNGEON ULTIMATE HUB (FULL DEBUG & DYNAMIC FIXED)
 -- ========================================================
 
 local Tab = _G.Hub["🏰 Dungeons"]
@@ -15,7 +15,7 @@ _G.Hub.Config.FarmHeight = _G.Hub.Config.FarmHeight or 10
 local selDungeon, selDiff, selPrivacy = "Space", "Easy", "Public"
 local selUpgrade = "DungeonHealth"
 local dungeonNames, diffNames, diffMap = {"Space"}, {"Easy"}, {["Easy"] = 1}
-local debugTimer = 0 -- Verhindert Konsolen-Spam
+local debugTimer = 0
 
 local upgradeMap = {
     ["Health"] = "DungeonHealth", ["Damage"] = "DungeonDamage",
@@ -24,7 +24,7 @@ local upgradeMap = {
     ["Crowns Boost"] = "DungeonCrowns"
 }
 
--- 2. DYNAMISCHE DATEN LADEN
+-- 2. DYNAMISCHE DATEN LADEN (Info vom Server)
 local function RefreshData()
     local success, Info = pcall(function() return require(RS.Modules:WaitForChild("DungeonInfo", 5)) end)
     if success and Info and Info.Dungeons and Info.Difficulties then
@@ -40,94 +40,30 @@ local function RefreshData()
 end
 RefreshData()
 
--- 3. UI: MANAGEMENT (Lobby & Start)
+-- 3. UI: LOBBY MANAGEMENT
 Tab:CreateSection("🏰 Dungeon Management")
+Tab:CreateDropdown({Name = "Select Dungeon", Options = dungeonNames, CurrentOption = "Space", Callback = function(opt) selDungeon = (type(opt) == "table" and opt[1]) or tostring(opt) end})
+Tab:CreateDropdown({Name = "Difficulty", Options = diffNames, CurrentOption = "Easy", Callback = function(opt) selDiff = (type(opt) == "table" and opt[1]) or tostring(opt) end})
+Tab:CreateDropdown({Name = "Privacy", Options = {"Public", "Friends"}, CurrentOption = "Public", Callback = function(opt) selPrivacy = (type(opt) == "table" and opt[1]) or tostring(opt) end})
+Tab:CreateButton({Name = "🔨 Create Lobby", Callback = function() RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", tostring(selPrivacy), tostring(selDungeon), tonumber(diffMap[selDiff]) or 1) end})
+Tab:CreateButton({Name = "▶️ Start Dungeon", Callback = function() RS.Events.UIAction:FireServer("DungeonGroupAction", "Start") end})
 
-Tab:CreateDropdown({
-    Name = "Select Dungeon",
-    Options = dungeonNames,
-    CurrentOption = "Space",
-    Callback = function(opt) selDungeon = (type(opt) == "table" and opt[1]) or tostring(opt) end
-})
-
-Tab:CreateDropdown({
-    Name = "Difficulty",
-    Options = diffNames,
-    CurrentOption = "Easy",
-    Callback = function(opt) selDiff = (type(opt) == "table" and opt[1]) or tostring(opt) end
-})
-
-Tab:CreateDropdown({
-    Name = "Privacy",
-    Options = {"Public", "Friends"},
-    CurrentOption = "Public",
-    Callback = function(opt) selPrivacy = (type(opt) == "table" and opt[1]) or tostring(opt) end
-})
-
-Tab:CreateButton({
-    Name = "🔨 Create Lobby",
-    Callback = function()
-        local pArg = tostring(selPrivacy)
-        if pArg:find("table:") then pArg = "Public" end 
-        RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", pArg, tostring(selDungeon), tonumber(diffMap[selDiff]) or 1)
-    end
-})
-
-Tab:CreateButton({
-    Name = "▶️ Start Dungeon",
-    Callback = function()
-        RS.Events.UIAction:FireServer("DungeonGroupAction", "Start")
-    end
-})
-
--- 4. UI: AUTOFARM & SWING
+-- 4. UI: AUTOFARM
 Tab:CreateSection("⚔️ Dungeon Autofarm")
-
-Tab:CreateToggle({
-    Name = "Enable Autofarm",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.AutoFarm = v end
-})
-
-Tab:CreateToggle({
-    Name = "Auto Swing",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.AutoSwing = v end
-})
-
-Tab:CreateSlider({
-    Name = "Farm Height (Höhe)",
-    Min = 5, Max = 50, CurrentValue = 10,
-    Callback = function(v) _G.Hub.Config.FarmHeight = v end
-})
+Tab:CreateToggle({Name = "Enable Autofarm", CurrentValue = false, Callback = function(v) _G.Hub.Toggles.AutoFarm = v print("Autofarm Toggle:", v) end})
+Tab:CreateToggle({Name = "Auto Swing", CurrentValue = false, Callback = function(v) _G.Hub.Toggles.AutoSwing = v end})
+Tab:CreateSlider({Name = "Farm Height (Höhe)", Min = 5, Max = 50, CurrentValue = 10, Callback = function(v) _G.Hub.Config.FarmHeight = v end})
 
 -- 5. UI: UPGRADES & INCUBATOR
 Tab:CreateSection("🆙 Upgrades & Incubator")
+Tab:CreateDropdown({Name = "Select Upgrade", Options = {"Health", "Damage", "Crit Chance", "Incubator Slots", "Incubator Speed", "Coins Boost", "Crowns Boost"}, CurrentOption = "Health", Callback = function(opt) selUpgrade = upgradeMap[(type(opt) == "table" and opt[1]) or tostring(opt)] end})
+Tab:CreateToggle({Name = "Auto Buy Upgrade", CurrentValue = false, Callback = function(v) _G.Hub.Toggles.AutoDungeonUpgrade = v end})
+Tab:CreateToggle({Name = "Auto Claim Incubator", CurrentValue = false, Callback = function(v) _G.Hub.Toggles.AutoIncubator = v end})
 
-Tab:CreateDropdown({
-    Name = "Select Upgrade",
-    Options = {"Health", "Damage", "Crit Chance", "Incubator Slots", "Incubator Speed", "Coins Boost", "Crowns Boost"},
-    CurrentOption = "Health",
-    Callback = function(opt)
-        local val = (type(opt) == "table" and opt[1]) or tostring(opt)
-        selUpgrade = upgradeMap[val] or "DungeonHealth"
-    end
-})
-
-Tab:CreateToggle({
-    Name = "Auto Buy Upgrade",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.AutoDungeonUpgrade = v end
-})
-
-Tab:CreateToggle({
-    Name = "Auto Claim Incubator",
-    CurrentValue = false,
-    Callback = function(v) _G.Hub.Toggles.AutoIncubator = v end
-})
-
--- 6. HAUPT-LOGIK (TELEPORT, SWING & DEBUG PRINTS)
+-- 6. HAUPT-LOGIK (DEBUG & TELEPORT)
 task.spawn(function()
+    print("🚀 Dungeon-System geladen. Warte auf Autofarm-Aktivierung...")
+    
     while true do
         task.wait(0.01)
         
@@ -138,12 +74,16 @@ task.spawn(function()
             if myHRP then
                 pcall(function()
                     local ds = WS:FindFirstChild("DungeonStorage")
-                    if not ds then return end
-                    
+                    if not ds then 
+                        if tick() - debugTimer > 5 then warn("❌ DEBUG: DungeonStorage nicht gefunden!") debugTimer = tick() end
+                        return 
+                    end
+
+                    -- Findet den dynamischen Ordner (z.B. 56c6f689...)
                     local dungeonFolder = nil
-                    for _, f in pairs(ds:GetChildren()) do
-                        if f:IsA("Folder") and f:FindFirstChild("Important") then
-                            dungeonFolder = f
+                    for _, child in pairs(ds:GetChildren()) do
+                        if child:IsA("Folder") and child:FindFirstChild("Important") then
+                            dungeonFolder = child
                             break
                         end
                     end
@@ -155,7 +95,7 @@ task.spawn(function()
                         
                         local spawnerList = {"GreenEnemySpawner", "BlueEnemySpawner", "RedEnemySpawner", "PurpleEnemySpawner", "PurpleBossEnemySpawner"}
                         
-                        -- Suche nach Gegnern
+                        -- Suche Bots
                         for _, sName in pairs(spawnerList) do
                             if targetPart then break end
                             for _, obj in pairs(important:GetChildren()) do
@@ -163,7 +103,6 @@ task.spawn(function()
                                     for _, bot in pairs(obj:GetChildren()) do
                                         local hp = bot:GetAttribute("Health")
                                         if bot:IsA("Model") and hp and hp > 0 then
-                                            -- Nutze PrimaryPart (HumanoidRootPart)
                                             targetPart = bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
                                             if targetPart then 
                                                 targetBotObj = bot
@@ -176,17 +115,16 @@ task.spawn(function()
                             end
                         end
                         
-                        -- DEBUG AUSGABE (Alle 2 Sekunden)
+                        -- AUSGABE IN KONSOLE (Alle 2 Sek)
                         if tick() - debugTimer > 2 then
                             if targetBotObj and targetPart then
-                                local moveTo = targetBotObj:GetAttribute("MoveTo") or "Kein MoveTo Attribut"
-                                print("----------------------------------")
-                                print("✅ Bot gefunden: " .. tostring(targetBotObj.Name))
+                                print("--- [DUNGEON DEBUG] ---")
+                                print("👾 Bot gefunden: " .. tostring(targetBotObj.Name))
                                 print("📍 Bot Position: " .. tostring(targetPart.Position))
-                                print("🛤️ MoveTo Attribut: " .. tostring(moveTo))
-                                print("----------------------------------")
+                                print("🛤️ MoveTo Attribut: " .. tostring(targetBotObj:GetAttribute("MoveTo")))
+                                print("❤️ Health: " .. tostring(targetBotObj:GetAttribute("Health")))
                             else
-                                warn("❌ Kein Bot in den Spawnern gefunden!")
+                                warn("🔍 Suche läuft... Dungeon gefunden, aber keine lebenden Bots sichtbar.")
                             end
                             debugTimer = tick()
                         end
@@ -196,27 +134,31 @@ task.spawn(function()
                             myHRP.Velocity = Vector3.new(0,0,0)
                             myHRP.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, _G.Hub.Config.FarmHeight, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
                         end
+                    else
+                        if tick() - debugTimer > 5 then warn("⚠️ DEBUG: DungeonStorage ist da, aber kein aktiver Dungeon-Ordner!") debugTimer = tick() end
                     end
                 end)
             end
         end
         
+        -- Auto Swing
         if _G.Hub.Toggles.AutoSwing then
             RS.Events.UIAction:FireServer("Swing")
         end
     end
 end)
 
--- 7. UPGRADE & INCUBATOR LOOP (FIXED INDEX ERROR)
+-- 7. UPGRADE & INCUBATOR LOOP (FIXED)
 task.spawn(function()
     while true do
         task.wait(1)
+        -- Upgrades (Index-Fehler gefixt)
         if _G.Hub.Toggles.AutoDungeonUpgrade and selUpgrade then
             pcall(function()
-                -- Nur der Name des Upgrades wird gesendet
                 RS.Events.UIAction:FireServer("BuyDungeonUpgrade", selUpgrade)
             end)
         end
+        -- Incubator
         if _G.Hub.Toggles.AutoIncubator then
             pcall(function()
                 RS.Events.UIAction:FireServer("IncubatorAction", "ClaimAll")
