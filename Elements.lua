@@ -115,50 +115,67 @@ local ZONES = {
 }
 
 -- ========================================================
--- 2. REGION LOADING FUNCTIONS
+-- 2. REGION LOADING FUNCTIONS (FIXED PATHS)
 -- ========================================================
 local function loadRegion(regionName)
     if not regionName then return true end -- Normal Zones brauchen kein Loading
     
     -- Check ob bereits geladen
     if _G.Hub.Config.LoadedRegions[regionName] then 
+        print("ℹ️ Region bereits geladen: " .. regionName)
         return true 
     end
     
+    -- HiddenRegions aus ReplicatedStorage
     local hiddenRegions = RS:FindFirstChild("HiddenRegions")
     if not hiddenRegions then 
-        warn("⚠️ HiddenRegions nicht gefunden!")
+        warn("❌ ReplicatedStorage.HiddenRegions nicht gefunden!")
         return false 
     end
     
+    -- Finde den Region Folder
     local regionFolder = hiddenRegions:FindFirstChild(regionName)
     if not regionFolder then
-        warn("⚠️ Region nicht gefunden: " .. regionName)
+        warn("❌ Region nicht in HiddenRegions gefunden: " .. regionName)
         return false
     end
     
-    -- Clone Region nach RegionsLoaded
-    local regionsLoaded = WS.Gameplay:FindFirstChild("RegionsLoaded")
+    -- Ziel: Workspace.Gameplay.RegionsLoaded
+    local gameplay = WS:FindFirstChild("Gameplay")
+    if not gameplay then
+        warn("❌ Workspace.Gameplay nicht gefunden!")
+        return false
+    end
+    
+    local regionsLoaded = gameplay:FindFirstChild("RegionsLoaded")
     if not regionsLoaded then
-        warn("⚠️ RegionsLoaded nicht gefunden!")
+        warn("❌ Workspace.Gameplay.RegionsLoaded nicht gefunden!")
         return false
     end
     
-    -- Check ob bereits existiert
+    -- Check ob bereits existiert in RegionsLoaded
     if regionsLoaded:FindFirstChild(regionName) then
-        print("✅ Region bereits geladen: " .. regionName)
+        print("✅ Region bereits in RegionsLoaded: " .. regionName)
         _G.Hub.Config.LoadedRegions[regionName] = true
         return true
     end
     
-    -- Clone die Region
-    local clonedRegion = regionFolder:Clone()
-    clonedRegion.Parent = regionsLoaded
+    -- Clone die Region von HiddenRegions nach RegionsLoaded
+    local success, err = pcall(function()
+        local clonedRegion = regionFolder:Clone()
+        clonedRegion.Parent = regionsLoaded
+        print("✅ Region erfolgreich geladen: " .. regionName)
+        print("   Von: ReplicatedStorage.HiddenRegions." .. regionName)
+        print("   Nach: Workspace.Gameplay.RegionsLoaded." .. regionName)
+    end)
     
-    _G.Hub.Config.LoadedRegions[regionName] = true
-    print("✅ Region geladen: " .. regionName)
-    
-    return true
+    if success then
+        _G.Hub.Config.LoadedRegions[regionName] = true
+        return true
+    else
+        warn("❌ Fehler beim Laden der Region: " .. tostring(err))
+        return false
+    end
 end
 
 local function unloadRegion(regionName)
@@ -189,7 +206,10 @@ local function getZonePath(zone)
     local current = WS
     for _, part in ipairs(parts) do
         current = current:FindFirstChild(part)
-        if not current then return nil end
+        if not current then 
+            warn("⚠️ Path Teil nicht gefunden: " .. part)
+            return nil 
+        end
     end
     return current
 end
@@ -264,7 +284,6 @@ for _, zone in ipairs(ZONES.FIRE) do
         CurrentValue = false,
         Callback = function(Value)
             if Value then
-                -- Lade Region falls nötig
                 if loadRegion(zone.regionName) then
                     table.insert(_G.Hub.Config.SelectedZones, zone)
                     print("✅ Added: " .. zone.name)
@@ -411,6 +430,7 @@ Tab:CreateButton({
         end
         
         print("📂 Zone Structure for: " .. currentZone.name)
+        print("📂 Full Path: " .. zonePath:GetFullName())
         for _, child in pairs(zonePath:GetChildren()) do
             print("  ├─ " .. child.Name .. " (" .. child.ClassName .. ")")
             
@@ -431,8 +451,28 @@ Tab:CreateButton({
     Name = "📋 Show Loaded Regions",
     Callback = function()
         print("📋 Currently Loaded Regions:")
+        local count = 0
         for regionName, _ in pairs(_G.Hub.Config.LoadedRegions) do
+            count = count + 1
             print("  ✅ " .. regionName)
+        end
+        if count == 0 then
+            print("  ℹ️ No regions loaded yet")
+        end
+    end
+})
+
+Tab:CreateButton({
+    Name = "🔍 Check HiddenRegions",
+    Callback = function()
+        local hiddenRegions = RS:FindFirstChild("HiddenRegions")
+        if hiddenRegions then
+            print("📂 Available Regions in HiddenRegions:")
+            for _, region in pairs(hiddenRegions:GetChildren()) do
+                print("  📁 " .. region.Name)
+            end
+        else
+            print("❌ HiddenRegions not found!")
         end
     end
 })
@@ -494,7 +534,13 @@ task.spawn(function()
                 return
             end
             
+            task.wait(0.5) -- Kleine Wartezeit nach Region Load
+            
             local zonePath = getZonePath(currentZone)
+            if not zonePath then
+                warn("⚠️ Zone path not found after loading region!")
+                return
+            end
             
             -- Teleport zur Zone
             local char = Player.Character
@@ -553,4 +599,6 @@ task.spawn(function()
 end)
 
 print("✅ Element Farm ULTIMATE geladen!")
-print("📋 Alle Systeme bereit (mit Region Loading)")
+print("📋 Region Loading System aktiv")
+print("   Von: ReplicatedStorage.HiddenRegions")
+print("   Nach: Workspace.Gameplay.RegionsLoaded")
