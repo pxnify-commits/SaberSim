@@ -1,27 +1,24 @@
 -- ========================================================
--- 🔥 ELEMENTAL ZONE AUTO FARM MODULE
--- Für Error Dynamics Modular System
+-- 🔥 ELEMENTAL ZONE AUTO FARM ULTIMATE
 -- ========================================================
 
+local Tab = _G.Hub["🔥 Elements"]
 local RS = game:GetService("ReplicatedStorage")
 local WS = game:GetService("Workspace")
 local Player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 
--- Zugriff auf das Tab aus dem Loader
-local Tab = _G.Hub["🔥 Elements"]
-
--- Initialisiere globale Variablen
-_G.Hub.Toggles.AUTO_SWING_ENABLED = _G.Hub.Toggles.AUTO_SWING_ENABLED or false
-_G.Hub.Toggles.AUTO_FARM_ENABLED = _G.Hub.Toggles.AUTO_FARM_ENABLED or false
+-- Globale Tabellen initialisieren
+_G.Hub.Config = _G.Hub.Config or {}
+_G.Hub.Toggles = _G.Hub.Toggles or {}
 _G.Hub.Config.SelectedZones = _G.Hub.Config.SelectedZones or {}
 _G.Hub.Config.CurrentZoneIndex = _G.Hub.Config.CurrentZoneIndex or 1
+_G.Hub.Config.ElementFarmHeight = _G.Hub.Config.ElementFarmHeight or 3
 
 -- ========================================================
--- ZONE DEFINITIONEN
+-- 1. ZONE DEFINITIONEN
 -- ========================================================
 local ZONES = {
-    -- FIRE ZONES
     FIRE = {
         {
             name = "🔥 Normal Fire",
@@ -49,7 +46,6 @@ local ZONES = {
         }
     },
     
-    -- WATER ZONES
     WATER = {
         {
             name = "💧 Normal Water",
@@ -77,7 +73,6 @@ local ZONES = {
         }
     },
     
-    -- EARTH ZONES
     EARTH = {
         {
             name = "🌍 Normal Earth",
@@ -107,9 +102,11 @@ local ZONES = {
 }
 
 -- ========================================================
--- HELPER FUNCTIONS
+-- 2. HELPER FUNCTIONS
 -- ========================================================
 local function getZonePath(zone)
+    if not zone or not zone.path then return nil end
+    
     local parts = {}
     for part in string.gmatch(zone.path, "[^.]+") do
         table.insert(parts, part)
@@ -118,9 +115,7 @@ local function getZonePath(zone)
     local current = WS
     for _, part in ipairs(parts) do
         current = current:FindFirstChild(part)
-        if not current then
-            return nil
-        end
+        if not current then return nil end
     end
     return current
 end
@@ -141,15 +136,18 @@ end
 
 local function teleportEnemiesToPlayer(zonePath)
     local char = Player.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not char then return end
     
+    local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp or not zonePath then return end
+    
+    local h = _G.Hub.Config.ElementFarmHeight or 3
     
     for _, entity in pairs(zonePath:GetChildren()) do
         if entity:IsA("Model") then
             local hum = entity:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 then
-                local targetCFrame = hrp.CFrame * CFrame.new(0, 0, -3)
+                local targetCFrame = hrp.CFrame * CFrame.new(0, 0, -h)
                 pcall(function()
                     entity:PivotTo(targetCFrame)
                     hum:MoveTo(hrp.Position)
@@ -171,92 +169,14 @@ local function getNextZone()
 end
 
 -- ========================================================
--- AUTO FARM LOOP (NUR EINMAL STARTEN)
+-- 3. UI SECTION: FIRE ZONES
 -- ========================================================
-if not _G.Hub.Functions.ElementFarmLoop then
-    _G.Hub.Functions.ElementFarmLoop = true
-    
-    task.spawn(function()
-        while true do
-            task.wait(0.5)
-            
-            if _G.Hub.Toggles.AUTO_FARM_ENABLED and #_G.Hub.Config.SelectedZones > 0 then
-                local currentZone = _G.Hub.Config.SelectedZones[_G.Hub.Config.CurrentZoneIndex]
-                local zonePath = getZonePath(currentZone)
-                
-                -- Teleport zur Zone
-                local char = Player.Character
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                
-                if hrp then
-                    local distance = (hrp.Position - currentZone.coords.Position).Magnitude
-                    
-                    if distance > 50 then
-                        hrp.CFrame = currentZone.coords
-                        print("📍 Teleporting to: " .. currentZone.name)
-                        task.wait(2)
-                    end
-                end
-                
-                -- Check ob Zone clear ist
-                if not hasEnemiesInZone(zonePath) then
-                    print("✅ Zone cleared: " .. currentZone.name)
-                    getNextZone()
-                    task.wait(1)
-                end
-            end
-        end
-    end)
-end
-
--- ========================================================
--- ENEMY TELEPORT LOOP
--- ========================================================
-if not _G.Hub.Functions.ElementTeleportLoop then
-    _G.Hub.Functions.ElementTeleportLoop = true
-    
-    RunService.RenderStepped:Connect(function()
-        if _G.Hub.Toggles.AUTO_FARM_ENABLED and #_G.Hub.Config.SelectedZones > 0 then
-            local currentZone = _G.Hub.Config.SelectedZones[_G.Hub.Config.CurrentZoneIndex]
-            local zonePath = getZonePath(currentZone)
-            
-            if zonePath then
-                teleportEnemiesToPlayer(zonePath)
-            end
-        end
-    end)
-end
-
--- ========================================================
--- AUTO SWING LOOP
--- ========================================================
-if not _G.Hub.Functions.AutoSwingLoop then
-    _G.Hub.Functions.AutoSwingLoop = true
-    
-    task.spawn(function()
-        while true do
-            task.wait(0.1)
-            if _G.Hub.Toggles.AUTO_SWING_ENABLED then
-                pcall(function()
-                    RS.Events.UIAction:FireServer("Swing")
-                end)
-            end
-        end
-    end)
-end
-
--- ========================================================
--- UI CREATION
--- ========================================================
-
--- ========== FIRE ZONES ==========
 Tab:CreateSection("🔥 Fire Zones")
 
 for _, zone in ipairs(ZONES.FIRE) do
     Tab:CreateToggle({
         Name = zone.displayName,
         CurrentValue = false,
-        Flag = "Fire_" .. zone.name,
         Callback = function(Value)
             if Value then
                 table.insert(_G.Hub.Config.SelectedZones, zone)
@@ -276,14 +196,15 @@ end
 
 Tab:CreateLabel("🔥 Fire Farm [BETA]")
 
--- ========== WATER ZONES ==========
+-- ========================================================
+-- 4. UI SECTION: WATER ZONES
+-- ========================================================
 Tab:CreateSection("💧 Water Zones")
 
 for _, zone in ipairs(ZONES.WATER) do
     Tab:CreateToggle({
         Name = zone.displayName,
         CurrentValue = false,
-        Flag = "Water_" .. zone.name,
         Callback = function(Value)
             if Value then
                 table.insert(_G.Hub.Config.SelectedZones, zone)
@@ -301,14 +222,15 @@ for _, zone in ipairs(ZONES.WATER) do
     })
 end
 
--- ========== EARTH ZONES ==========
+-- ========================================================
+-- 5. UI SECTION: EARTH ZONES
+-- ========================================================
 Tab:CreateSection("🌍 Earth Zones")
 
 for _, zone in ipairs(ZONES.EARTH) do
     Tab:CreateToggle({
         Name = zone.displayName,
         CurrentValue = false,
-        Flag = "Earth_" .. zone.name,
         Callback = function(Value)
             if Value then
                 table.insert(_G.Hub.Config.SelectedZones, zone)
@@ -326,38 +248,54 @@ for _, zone in ipairs(ZONES.EARTH) do
     })
 end
 
--- ========== CONTROLS ==========
-Tab:CreateSection("⚙️ Controls")
+-- ========================================================
+-- 6. UI SECTION: FARMING CONTROLS
+-- ========================================================
+Tab:CreateSection("⚔️ Element Farming")
 
 Tab:CreateToggle({
-    Name = "🚀 Start Auto Farm",
+    Name = "Enable Auto Farm",
     CurrentValue = false,
-    Flag = "AutoFarm_Toggle",
-    Callback = function(Value)
-        _G.Hub.Toggles.AUTO_FARM_ENABLED = Value
+    Callback = function(v)
+        _G.Hub.Toggles.ElementAutoFarm = v
         
-        if Value then
+        if v then
             if #_G.Hub.Config.SelectedZones == 0 then
                 warn("⚠️ No zones selected! Please select at least one zone.")
-                _G.Hub.Toggles.AUTO_FARM_ENABLED = false
+                _G.Hub.Toggles.ElementAutoFarm = false
             else
-                print("🚀 Auto Farm Started! Farming " .. #_G.Hub.Config.SelectedZones .. " zones.")
+                print("✅ Auto Farm aktiviert - Farming " .. #_G.Hub.Config.SelectedZones .. " zones")
             end
         else
-            print("⏹️ Auto Farm Stopped!")
+            print("⏸️ Auto Farm deaktiviert")
         end
     end
 })
 
 Tab:CreateToggle({
-    Name = "⚔️ Auto Swing",
+    Name = "Auto Swing",
     CurrentValue = false,
-    Flag = "AutoSwing_Toggle",
-    Callback = function(Value)
-        _G.Hub.Toggles.AUTO_SWING_ENABLED = Value
-        print(Value and "⚔️ Auto Swing: ON" or "⚔️ Auto Swing: OFF")
+    Callback = function(v)
+        _G.Hub.Toggles.ElementAutoSwing = v
     end
 })
+
+pcall(function()
+    Tab:CreateSlider({
+        Name = "Enemy Distance",
+        Range = {2, 20},
+        Increment = 1,
+        CurrentValue = _G.Hub.Config.ElementFarmHeight or 3,
+        Callback = function(v)
+            _G.Hub.Config.ElementFarmHeight = tonumber(v) or 3
+        end
+    })
+end)
+
+-- ========================================================
+-- 7. UI SECTION: QUICK ACTIONS
+-- ========================================================
+Tab:CreateSection("⚙️ Quick Actions")
 
 Tab:CreateButton({
     Name = "🗑️ Clear All Selections",
@@ -382,16 +320,87 @@ Tab:CreateButton({
     end
 })
 
-print("✅ Element Farm Module loaded successfully!")
-```
+Tab:CreateButton({
+    Name = "🔄 Force Zone Refresh",
+    Callback = function()
+        local current = _G.Hub.Config.SelectedZones[_G.Hub.Config.CurrentZoneIndex]
+        if current then
+            print("🔄 Refreshing zone: " .. current.name)
+            getNextZone()
+        else
+            print("⚠️ No active zone")
+        end
+    end
+})
 
-**Änderungen für deinen Loader:**
-1. ✅ **`local Tab = _G.Hub["🔥 Elements"]`** - Greift auf dein Tab zu
-2. ✅ **Alle Variablen in `_G.Hub`** gespeichert (Toggles, Config, Functions)
-3. ✅ **Loop-Guards** verhindern Doppel-Ausführung
-4. ✅ **Flags für Rayfield Config-Saving** hinzugefügt
-5. ✅ **Debug-Prints** für besseres Tracking
+-- ========================================================
+-- 8. HAUPT-FARMING LOOP (ZONE ROTATION)
+-- ========================================================
+task.spawn(function()
+    while task.wait(0.5) do
+        if not _G.Hub.Toggles.ElementAutoFarm then continue end
+        if #_G.Hub.Config.SelectedZones == 0 then continue end
+        
+        pcall(function()
+            local currentZone = _G.Hub.Config.SelectedZones[_G.Hub.Config.CurrentZoneIndex]
+            if not currentZone then return end
+            
+            local zonePath = getZonePath(currentZone)
+            
+            -- Teleport zur Zone
+            local char = Player.Character
+            if not char then return end
+            
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+            
+            local distance = (hrp.Position - currentZone.coords.Position).Magnitude
+            
+            if distance > 50 then
+                hrp.CFrame = currentZone.coords
+                task.wait(2)
+            end
+            
+            -- Check ob Zone clear ist
+            if not hasEnemiesInZone(zonePath) then
+                print("✅ Zone cleared: " .. currentZone.name)
+                getNextZone()
+                task.wait(1)
+            end
+        end)
+    end
+end)
 
-**Upload auf GitHub:**
-```
-https://raw.githubusercontent.com/pxnify-commits/SaberSim/main/Elements.lua
+-- ========================================================
+-- 9. ENEMY TELEPORT LOOP (RENDERSTEP)
+-- ========================================================
+RunService.RenderStepped:Connect(function()
+    if not _G.Hub.Toggles.ElementAutoFarm then return end
+    if #_G.Hub.Config.SelectedZones == 0 then return end
+    
+    pcall(function()
+        local currentZone = _G.Hub.Config.SelectedZones[_G.Hub.Config.CurrentZoneIndex]
+        if not currentZone then return end
+        
+        local zonePath = getZonePath(currentZone)
+        if zonePath then
+            teleportEnemiesToPlayer(zonePath)
+        end
+    end)
+end)
+
+-- ========================================================
+-- 10. AUTO SWING LOOP
+-- ========================================================
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.Hub.Toggles.ElementAutoSwing and _G.Hub.Toggles.ElementAutoFarm then
+            pcall(function()
+                RS.Events.UIAction:FireServer("Swing")
+            end)
+        end
+    end
+end)
+
+print("✅ Element Farm ULTIMATE geladen!")
+print("📋 Alle Systeme bereit")
