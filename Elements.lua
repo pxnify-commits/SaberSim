@@ -1,5 +1,5 @@
 -- ========================================================
--- 🔥 ELEMENTAL ZONE AUTO FARM ULTIMATE (FIXED)
+-- 🔥 ELEMENTAL ZONE AUTO FARM ULTIMATE (DEBUG VERSION)
 -- ========================================================
 
 local Tab = _G.Hub["🔥 Elements"]
@@ -24,7 +24,7 @@ end
 _G.Hub.ElementModuleLoaded = true
 
 -- ========================================================
--- 1. ZONE DEFINITIONEN (MIT REGION NAMES)
+-- 1. ZONE DEFINITIONEN
 -- ========================================================
 local ZONES = {
     FIRE = {
@@ -176,7 +176,7 @@ local function loadRegion(regionName)
 end
 
 -- ========================================================
--- 3. HELPER FUNCTIONS (FIXED PATHS)
+-- 3. HELPER FUNCTIONS (VERBESSERT MIT DEBUG)
 -- ========================================================
 local function getZonePath(zone)
     if not zone or not zone.path then return nil end
@@ -197,23 +197,34 @@ local function getZonePath(zone)
 end
 
 local function hasEnemiesInZone(zonePath)
-    if not zonePath then return false end
+    if not zonePath then 
+        warn("⚠️ hasEnemiesInZone: zonePath ist nil!")
+        return false 
+    end
     
-    -- Suche nach "Fire Golem", "Fire Boss", "Water Golem", etc.
+    local foundEnemies = 0
+    
     for _, entity in pairs(zonePath:GetChildren()) do
-        if entity:IsA("Model") and (entity.Name:find("Golem") or entity.Name:find("Boss")) then
+        -- DEBUG: Zeige alle Children
+        print("  Checking: " .. entity.Name .. " (" .. entity.ClassName .. ")")
+        
+        if entity:IsA("Model") then
             local hrp = entity:FindFirstChild("HumanoidRootPart")
             local hum = entity:FindFirstChildOfClass("Humanoid")
             
+            print("    HRP: " .. tostring(hrp ~= nil) .. " | Humanoid: " .. tostring(hum ~= nil))
+            
             if hrp and hum and hum.Health > 0 then
-                return true
+                foundEnemies = foundEnemies + 1
+                print("    ✅ Found alive enemy: " .. entity.Name .. " (HP: " .. hum.Health .. ")")
             end
         end
     end
-    return false
+    
+    print("📊 Total enemies found: " .. foundEnemies)
+    return foundEnemies > 0
 end
 
--- WICHTIG: Neue Teleport-Funktion die direkt das HumanoidRootPart CFrame setzt
 local function teleportEnemiesToPlayer(zonePath)
     local char = Player.Character
     if not char then return end
@@ -223,21 +234,17 @@ local function teleportEnemiesToPlayer(zonePath)
     
     local h = _G.Hub.Config.ElementFarmHeight or 3
     
-    -- Suche nach "Fire Golem", "Fire Boss", etc.
     for _, entity in pairs(zonePath:GetChildren()) do
-        if entity:IsA("Model") and (entity.Name:find("Golem") or entity.Name:find("Boss")) then
+        if entity:IsA("Model") then
             pcall(function()
-                -- Gehe ins Model rein und hole das HumanoidRootPart
                 local enemyHRP = entity:FindFirstChild("HumanoidRootPart")
                 
                 if enemyHRP then
-                    -- Setze dauerhaft die Position vor den Spieler
                     local targetCFrame = hrp.CFrame * CFrame.new(0, 0, -h)
                     enemyHRP.CFrame = targetCFrame
                     enemyHRP.Velocity = Vector3.new(0, 0, 0)
                     enemyHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                     
-                    -- Stoppe AI
                     local hum = entity:FindFirstChildOfClass("Humanoid")
                     if hum then
                         hum:MoveTo(hrp.Position)
@@ -396,12 +403,12 @@ pcall(function()
 end)
 
 -- ========================================================
--- 8. UI SECTION: DEBUG & QUICK ACTIONS
+-- 8. UI SECTION: DEBUG TOOLS
 -- ========================================================
 Tab:CreateSection("🔍 Debug Tools")
 
 Tab:CreateButton({
-    Name = "🔍 Print Zone Structure",
+    Name = "🔍 Deep Scan Current Zone",
     Callback = function()
         local currentZone = _G.Hub.Config.SelectedZones[_G.Hub.Config.CurrentZoneIndex]
         if not currentZone then 
@@ -409,25 +416,54 @@ Tab:CreateButton({
             return 
         end
         
+        print("=" .. string.rep("=", 50))
+        print("🔍 DEEP SCAN: " .. currentZone.name)
+        print("=" .. string.rep("=", 50))
+        
         local zonePath = getZonePath(currentZone)
         if not zonePath then
-            print("❌ Zone path not found")
+            print("❌ Zone path not found!")
+            print("   Expected path: " .. currentZone.path)
             return
         end
         
-        print("📂 Zone Structure: " .. zonePath:GetFullName())
+        print("✅ Zone path found: " .. zonePath:GetFullName())
+        print("\n📂 Children in zone:")
+        
         for _, child in pairs(zonePath:GetChildren()) do
-            print("  ├─ " .. child.Name .. " (" .. child.ClassName .. ")")
+            print("\n├─ " .. child.Name .. " (" .. child.ClassName .. ")")
             
             if child:IsA("Model") then
-                local hrp = child:FindFirstChild("HumanoidRootPart")
-                print("    └─ HumanoidRootPart: " .. tostring(hrp and "✅ FOUND" or "❌ NOT FOUND"))
+                print("│  ├─ Is a Model ✅")
                 
+                -- Suche HumanoidRootPart
+                local hrp = child:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    print("    └─ Position: " .. tostring(hrp.Position))
+                    print("│  ├─ HumanoidRootPart: ✅ FOUND")
+                    print("│  │  └─ Position: " .. tostring(hrp.Position))
+                else
+                    print("│  ├─ HumanoidRootPart: ❌ NOT FOUND")
+                end
+                
+                -- Suche Humanoid
+                local hum = child:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    print("│  ├─ Humanoid: ✅ FOUND")
+                    print("│  │  ├─ Health: " .. hum.Health)
+                    print("│  │  └─ MaxHealth: " .. hum.MaxHealth)
+                else
+                    print("│  ├─ Humanoid: ❌ NOT FOUND")
+                end
+                
+                -- Zeige alle Children des Models
+                print("│  └─ Model Children:")
+                for _, modelChild in pairs(child:GetChildren()) do
+                    print("│     ├─ " .. modelChild.Name .. " (" .. modelChild.ClassName .. ")")
                 end
             end
         end
+        
+        print("\n" .. string.rep("=", 50))
     end
 })
 
@@ -460,7 +496,7 @@ Tab:CreateButton({
 -- 9. HAUPT-FARMING LOOP
 -- ========================================================
 task.spawn(function()
-    while task.wait(0.5) do
+    while task.wait(1) do -- Langsamer für besseres Debugging
         if not _G.Hub.Toggles.ElementAutoFarm then continue end
         if #_G.Hub.Config.SelectedZones == 0 then continue end
         
@@ -473,10 +509,15 @@ task.spawn(function()
                 return
             end
             
-            task.wait(0.5)
+            task.wait(1) -- Warte länger nach Region Load
             
             local zonePath = getZonePath(currentZone)
-            if not zonePath then return end
+            if not zonePath then 
+                warn("⚠️ Zone path not found!")
+                return 
+            end
+            
+            print("\n🔄 Checking zone: " .. currentZone.name)
             
             local char = Player.Character
             if not char then return end
@@ -489,20 +530,20 @@ task.spawn(function()
             if distance > 50 then
                 hrp.CFrame = currentZone.coords
                 print("📍 Teleported to: " .. currentZone.name)
-                task.wait(2)
+                task.wait(3) -- Längere Wartezeit nach Teleport
             end
             
             if not hasEnemiesInZone(zonePath) then
                 print("✅ Zone cleared: " .. currentZone.name)
                 getNextZone()
-                task.wait(1)
+                task.wait(2)
             end
         end)
     end
 end)
 
 -- ========================================================
--- 10. ENEMY TELEPORT LOOP (DAUERHAFT)
+-- 10. ENEMY TELEPORT LOOP
 -- ========================================================
 RunService.RenderStepped:Connect(function()
     if not _G.Hub.Toggles.ElementAutoFarm then return end
@@ -532,5 +573,5 @@ task.spawn(function()
     end
 end)
 
-print("✅ Element Farm ULTIMATE geladen!")
-print("📋 Paths fixed: Golem/Boss direkt angesprochen")
+print("✅ Element Farm ULTIMATE geladen! (DEBUG MODE)")
+print("🔍 Nutze 'Deep Scan Current Zone' um die Struktur zu sehen")
